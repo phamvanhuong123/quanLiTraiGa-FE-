@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { flockAPI } from "../../../api/flockApi";
 
-export default function ImportFlockModal({ open, onClose, onSuccess }) {
+export default function ImportFlockModal({
+  open,
+  onClose,
+  onSuccess,
+  initialData, // 👈 NHẬN DỮ LIỆU SỬA
+}) {
   const [breeds, setBreeds] = useState([]);
   const [coops, setCoops] = useState([]);
 
@@ -13,17 +18,38 @@ export default function ImportFlockModal({ open, onClose, onSuccess }) {
     quantity: "",
   });
 
+  // 👉 load dropdown + đổ form khi SỬA
   useEffect(() => {
     if (!open) return;
 
-    // load dropdown data
-    Promise.all([flockAPI.getBreeds(), flockAPI.getEmptyCoops()]).then(
-      ([breedRes, coopRes]) => {
-        setBreeds(breedRes.data || []);
-        setCoops(coopRes.data || []);
-      }
-    );
-  }, [open]);
+    setBreeds([
+      { id: 1, name: "Gà Ri" },
+      { id: 2, name: "Gà Hồ" },
+    ]);
+
+    setCoops([
+      { id: 1, name: "Chuồng A" },
+      { id: 2, name: "Chuồng B" },
+    ]);
+
+    if (initialData) {
+      setForm({
+        name: initialData.name || "",
+        breed: initialData.breed?.name || initialData.breed || "",
+        coop: initialData.coop || "",
+        importDate: initialData.importDate || "",
+        quantity: initialData.initialQuantity || "",
+      });
+    } else {
+      setForm({
+        name: "",
+        breed: "",
+        coop: "",
+        importDate: "",
+        quantity: "",
+      });
+    }
+  }, [open, initialData]);
 
   if (!open) return null;
 
@@ -37,22 +63,35 @@ export default function ImportFlockModal({ open, onClose, onSuccess }) {
       return;
     }
 
-    const res = await flockAPI.importFlock({
-      name: form.name,
-      breed: form.breed,
-      coop: form.coop,
-      importDate: form.importDate,
+    await flockAPI.importFlock({
+      ...form,
       quantity: Number(form.quantity),
     });
 
-    onSuccess(res.data);
+    const data = {
+      ...(initialData || {}),
+      id: initialData?.id || Date.now(),
+      name: form.name,
+      batchCode: initialData?.batchCode || `FLOCK-${Date.now()}`,
+      breed: { name: form.breed },
+      coop: form.coop,
+      importDate: form.importDate,
+      initialQuantity: Number(form.quantity),
+      currentQuantity: Number(form.quantity),
+      status: "Đang nuôi",
+    };
+
+    onSuccess(data);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white w-[420px] rounded shadow p-6">
-        <h2 className="text-lg font-semibold mb-4">Thêm đàn mới</h2>
+        {/* 🔥 TIÊU ĐỀ ĐÚNG */}
+        <h2 className="text-lg font-semibold mb-4">
+          {initialData ? "Sửa đàn" : "Thêm đàn mới"}
+        </h2>
 
         <div className="space-y-3">
           <input
@@ -118,6 +157,7 @@ export default function ImportFlockModal({ open, onClose, onSuccess }) {
             Huỷ
           </button>
           <button
+            type="button"
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             onClick={handleSubmit}
           >
