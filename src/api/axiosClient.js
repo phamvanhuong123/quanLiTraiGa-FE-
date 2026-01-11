@@ -17,8 +17,12 @@ axiosClient.interceptors.response.use(function onFulfilled(response) {
     // Do something with response data
     return response.data;
   }, function onRejected(error) {
-    // Any status codes that falls outside the range of 2xx cause this function to trigger
-    // Do something with response error
+    const status = error.response?.status
+    if (status === 401){
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+
+    }
     return Promise.reject(error);
   });
 export default axiosClient;
