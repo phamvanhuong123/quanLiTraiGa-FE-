@@ -1,9 +1,31 @@
-import { Table, Tag, Tooltip } from "antd";
+import { Table, Tag, Tooltip, Dropdown, Button, Space, Modal, message } from "antd";
 import dayjs from "dayjs";
 import ExpiryTag from "./ExpiryTag";
-import { InfoCircleOutlined, StockOutlined, DollarOutlined } from "@ant-design/icons";
+import { 
+  InfoCircleOutlined, 
+  StockOutlined, 
+  DollarOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  MoreOutlined
+} from "@ant-design/icons";
 
-export default function InventoryTable({ data }) {
+export default function InventoryTable({ data, onEdit, onDelete }) {
+  
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: 'Xác nhận xóa',
+      content: `Bạn có chắc chắn muốn xóa lô hàng ${record.batchCode}?`,
+      okText: 'Xóa',
+      cancelText: 'Hủy',
+      okType: 'danger',
+      onOk: () => {
+        onDelete && onDelete(record.id);
+        message.success(`Đã xóa lô hàng ${record.batchCode}`);
+      }
+    });
+  };
+
   const columns = [
     {
       title: (
@@ -127,6 +149,28 @@ export default function InventoryTable({ data }) {
           </div>
         </div>
       )
+    },
+    {
+      title: "Thao tác",
+      width: 100,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space>
+          <Button
+            type="text"
+            icon={<EditOutlined style={{ color: '#1890ff' }} />}
+            onClick={() => onEdit && onEdit(record)}
+            title="Chỉnh sửa"
+          />
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
+            onClick={() => handleDelete(record)}
+            title="Xóa"
+          />
+        </Space>
+      )
     }
   ];
 
@@ -143,7 +187,7 @@ export default function InventoryTable({ data }) {
         dataSource={data}
         pagination={{
           pageSize: 10,
-          showSizeChanger: false, // Quan trọng: tắt hiển thị size changer
+          showSizeChanger: false,
           showQuickJumper: false,
           showTotal: (total) => `Tổng ${total} lô hàng`,
           style: { margin: '16px 24px', padding: '16px 0', borderTop: '1px solid #f0f0f0' }

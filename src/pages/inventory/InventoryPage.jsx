@@ -14,8 +14,6 @@ import {
   PlusOutlined,
   InboxOutlined,
   WarningOutlined,
-  //DashboardOutlined,
-  //HomeOutlined,
   FilterOutlined,
   DollarOutlined
 } from "@ant-design/icons";
@@ -35,50 +33,44 @@ export default function InventoryPage() {
   const [onlyExpiring, setOnlyExpiring] = useState(false);
   const [materialFilter, setMaterialFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
+  
+  // State cho chức năng sửa
+  const [editingBatch, setEditingBatch] = useState(null);
+  const [modalMode, setModalMode] = useState("create"); // "create" hoặc "edit"
 
   /* ===== KPI TÍNH TOÁN ===== */
   const kpi = useMemo(() => {
     const today = dayjs();
 
-    // Lô sắp hết hạn (<= 7 ngày)
     const expiring = data.filter(
       (i) => dayjs(i.expiryDate).diff(today, "day") <= 7
     );
 
-    // Lô đã hết hạn
     const expired = data.filter(
       (i) => dayjs(i.expiryDate).diff(today, "day") < 0
     );
 
-    // Tổng tồn kho
     const totalRemaining = data.reduce(
       (sum, i) => sum + (i.quantityRemaining || 0),
       0
     );
 
-    // Tổng giá trị tồn kho
     const totalValue = data.reduce(
       (sum, i) => sum + (i.quantityRemaining * i.pricePerUnit),
       0
     );
 
-    // Tổng số lượng đã nhập
     const totalImported = data.reduce(
       (sum, i) => sum + (i.quantityImported || 0),
       0
     );
 
     return {
-      // Số lượng
       totalBatches: data.length,
       expiringBatches: expiring.length,
       expiredBatches: expired.length,
-
-      // Tồn kho
       totalRemaining,
       totalImported,
-
-      // Giá trị
       totalValue
     };
   }, [data]);
@@ -87,21 +79,18 @@ export default function InventoryPage() {
   const filteredData = useMemo(() => {
     let result = [...data];
 
-    // Lọc theo vật tư
     if (materialFilter !== "all") {
       result = result.filter(
         (i) => i.material.name === materialFilter
       );
     }
 
-    // Lọc chỉ lô sắp hết hạn
     if (onlyExpiring) {
       result = result.filter(
         (i) => dayjs(i.expiryDate).diff(dayjs(), "day") <= 7
       );
     }
 
-    // Tìm kiếm
     if (searchText) {
       const searchLower = searchText.toLowerCase();
       result = result.filter(i =>
@@ -114,6 +103,35 @@ export default function InventoryPage() {
 
     return result;
   }, [data, materialFilter, onlyExpiring, searchText]);
+
+  /* ===== XỬ LÝ SỰ KIỆN ===== */
+  const handleAddNew = () => {
+    setModalMode("create");
+    setEditingBatch(null);
+    setOpen(true);
+  };
+
+  const handleEdit = (batch) => {
+    setModalMode("edit");
+    setEditingBatch(batch);
+    setOpen(true);
+  };
+
+  const handleDelete = (batchId) => {
+    setData(prev => prev.filter(item => item.id !== batchId));
+  };
+
+  const handleModalSuccess = (newBatch, mode) => {
+    if (mode === "edit") {
+      // Cập nhật lô hàng đã sửa
+      setData(prev => prev.map(item => 
+        item.id === newBatch.id ? newBatch : item
+      ));
+    } else {
+      // Thêm lô hàng mới
+      setData(prev => [newBatch, ...prev]);
+    }
+  };
 
   return (
     <div style={{
@@ -131,7 +149,6 @@ export default function InventoryPage() {
         <div style={{ marginBottom: '32px' }}>
           <Breadcrumb
             items={[
-              //{ href: '/', title: <HomeOutlined /> },
               { href: '/dashboard', title: 'Dashboard' },
               { title: 'Quản lý kho' },
             ]}
@@ -237,7 +254,7 @@ export default function InventoryPage() {
             <Button
               type="primary"
               icon={<PlusOutlined />}
-              onClick={() => setOpen(true)}
+              onClick={handleAddNew}
               size="large"
               style={{
                 borderRadius: '6px',
@@ -256,7 +273,11 @@ export default function InventoryPage() {
         {/* ===== TABLE ===== */}
         <div style={{ position: 'relative' }}>
           {filteredData.length > 0 ? (
-            <InventoryTable data={filteredData} />
+            <InventoryTable 
+              data={filteredData} 
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
           ) : (
             <Card style={{ textAlign: 'center', padding: '60px 20px', borderRadius: '8px' }}>
               <InboxOutlined style={{ fontSize: '64px', color: '#d9d9d9', marginBottom: '16px' }} />
@@ -273,10 +294,13 @@ export default function InventoryPage() {
         {/* ===== MODAL ===== */}
         <ImportMaterialModal
           open={open}
-          onClose={() => setOpen(false)}
-          onSuccess={(newBatch) =>
-            setData((prev) => [newBatch, ...prev])
-          }
+          onClose={() => {
+            setOpen(false);
+            setEditingBatch(null);
+          }}
+          onSuccess={handleModalSuccess}
+          editingBatch={editingBatch}
+          mode={modalMode}
         />
       </Card>
     </div>
