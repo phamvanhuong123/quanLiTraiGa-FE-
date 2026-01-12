@@ -89,7 +89,6 @@ export default function SuppliersTab() {
 
       const errorMessage =
         error.response?.data?.message || "Có lỗi xảy ra, vui lòng thử lại";
-
       message.error(errorMessage);
 
       const fieldErrors = error.response?.data?.errors;
@@ -111,7 +110,8 @@ export default function SuppliersTab() {
       message.success("Xóa nhà cung cấp thành công");
     }
     catch(error){
-      message.error(`Thất bại vui lòng thử lại :  +${error} `)
+      console.log(error)
+      message.error(`Thất bại vui lòng thử lại : ${error?.response?.data?.message} `)
     }
   };
   useEffect(() => {
