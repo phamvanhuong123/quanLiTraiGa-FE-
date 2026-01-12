@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Table, Tag, Statistic, Card, Row, Col, Tooltip, Spin, Alert, Empty } from 'antd';
+import { Table, Tag, Statistic, Card, Row, Col, Tooltip, Alert, Empty } from 'antd';
 import {
     ArrowUpOutlined,
     ArrowDownOutlined,
@@ -8,25 +8,41 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
-    // Tính toán tổng hợp
+const FinanceTab = ({ transactions, flock, loading = false, error = null, financialStats = {} }) => {
+    // Đảm bảo transactions luôn là một mảng
+    const transactionList = Array.isArray(transactions) ? transactions : [];
+
+    // Tính toán tổng hợp - ƯU TIÊN DÙNG financialStats TỪ BE TRƯỚC
     const summary = useMemo(() => {
-        if (!transactions || transactions.length === 0) {
+        if (financialStats && typeof financialStats === 'object') {
+            const totalIncome = parseFloat(financialStats.totalIncome) || 0;
+            const totalExpense = parseFloat(financialStats.totalExpense) || 0;
+            const profit = parseFloat(financialStats.netProfit) || 0;
+
+            return {
+                totalIncome,
+                totalExpense,
+                profit
+            };
+        }
+
+        // Fallback: tính toán từ transactions
+        if (!transactionList || transactionList.length === 0) {
             return { totalIncome: 0, totalExpense: 0, profit: 0 };
         }
 
-        const totalIncome = transactions
-            .filter(t => t.type === 'INCOME' || t.type === 'revenue')
-            .reduce((sum, t) => sum + (t.amount || 0), 0);
+        const totalIncome = transactionList
+            .filter(t => t.type === 'INCOME' || t.type === 'revenue' || t.type === 'THU')
+            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
-        const totalExpense = transactions
-            .filter(t => t.type === 'EXPENSE' || t.type === 'expense')
-            .reduce((sum, t) => sum + (t.amount || 0), 0);
+        const totalExpense = transactionList
+            .filter(t => t.type === 'EXPENSE' || t.type === 'expense' || t.type === 'CHI')
+            .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
 
         const profit = totalIncome - totalExpense;
 
         return { totalIncome, totalExpense, profit };
-    }, [transactions]);
+    }, [transactionList, financialStats]);
 
     const columns = [
         {
@@ -35,7 +51,11 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
             key: 'transactionDate',
             width: 100,
             render: (date) => date ? dayjs(date).format('DD/MM/YY') : '-',
-            sorter: (a, b) => dayjs(a.transactionDate).unix() - dayjs(b.transactionDate).unix(),
+            sorter: (a, b) => {
+                const dateA = a.transactionDate ? dayjs(a.transactionDate).unix() : 0;
+                const dateB = b.transactionDate ? dayjs(b.transactionDate).unix() : 0;
+                return dateA - dateB;
+            },
             defaultSortOrder: 'descend'
         },
         {
@@ -44,7 +64,7 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
             key: 'type',
             width: 80,
             render: (type) => {
-                const isIncome = type === 'INCOME' || type === 'revenue';
+                const isIncome = type === 'INCOME' || type === 'revenue' || type === 'THU';
                 return (
                     <Tag color={isIncome ? 'green' : 'red'} style={{ margin: 0 }}>
                         {isIncome ? 'THU' : 'CHI'}
@@ -84,18 +104,19 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
             key: 'amount',
             width: 150,
             render: (amount, record) => {
-                const isIncome = record.type === 'INCOME' || record.type === 'revenue';
+                const isIncome = record.type === 'INCOME' || record.type === 'revenue' || record.type === 'THU';
+                const amountNum = parseFloat(amount) || 0;
                 return (
                     <div style={{
                         fontWeight: 'bold',
                         color: isIncome ? '#52c41a' : '#f5222d'
                     }}>
                         {isIncome ? '+' : '-'}
-                        {(amount || 0).toLocaleString('vi-VN')}₫
+                        {amountNum.toLocaleString('vi-VN')}₫
                     </div>
                 );
             },
-            sorter: (a, b) => (a.amount || 0) - (b.amount || 0)
+            sorter: (a, b) => (parseFloat(a.amount) || 0) - (parseFloat(b.amount) || 0)
         },
         {
             title: 'Người thực hiện',
@@ -103,10 +124,11 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
             key: 'createdBy',
             width: 150,
             render: (createdBy) => {
+                if (!createdBy) return '-';
                 if (typeof createdBy === 'object') {
-                    return createdBy?.fullName || createdBy?.name || '-';
+                    return createdBy.fullName || createdBy.name || createdBy.username || '-';
                 }
-                return createdBy || '-';
+                return createdBy;
             }
         }
     ];
@@ -128,7 +150,15 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
         return (
             <Card>
                 <div style={{ textAlign: 'center', padding: '40px' }}>
-                    <Spin tip="Đang tải dữ liệu tài chính..." />
+                    <div className="ant-spin ant-spin-lg">
+                        <span className="ant-spin-dot ant-spin-dot-spin">
+                            <i className="ant-spin-dot-item"></i>
+                            <i className="ant-spin-dot-item"></i>
+                            <i className="ant-spin-dot-item"></i>
+                            <i className="ant-spin-dot-item"></i>
+                        </span>
+                    </div>
+                    <div style={{ marginTop: 16 }}>Đang tải dữ liệu tài chính...</div>
                 </div>
             </Card>
         );
@@ -149,7 +179,13 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
                                 title="Tổng thu"
                                 value={summary.totalIncome}
                                 precision={0}
-                                valueStyle={{ color: '#3f8600' }}
+                                styles={{
+                                    content: {
+                                        color: '#3f8600',
+                                        fontSize: '24px',
+                                        fontWeight: 'bold'
+                                    }
+                                }}
                                 prefix={<ArrowUpOutlined />}
                                 suffix="₫"
                             />
@@ -161,7 +197,13 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
                                 title="Tổng chi"
                                 value={summary.totalExpense}
                                 precision={0}
-                                valueStyle={{ color: '#cf1322' }}
+                                styles={{
+                                    content: {
+                                        color: '#cf1322',
+                                        fontSize: '24px',
+                                        fontWeight: 'bold'
+                                    }
+                                }}
                                 prefix={<ArrowDownOutlined />}
                                 suffix="₫"
                             />
@@ -173,9 +215,12 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
                                 title="Lợi nhuận"
                                 value={summary.profit}
                                 precision={0}
-                                valueStyle={{
-                                    color: summary.profit >= 0 ? '#3f8600' : '#cf1322',
-                                    fontWeight: 'bold'
+                                styles={{
+                                    content: {
+                                        color: summary.profit >= 0 ? '#3f8600' : '#cf1322',
+                                        fontSize: '24px',
+                                        fontWeight: 'bold'
+                                    }
                                 }}
                                 prefix={summary.profit >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
                                 suffix="₫"
@@ -188,81 +233,107 @@ const FinanceTab = ({ transactions, flock, loading = false, error = null }) => {
                 </Row>
 
                 {/* Chi tiết phân tích chi phí */}
-                {transactions && transactions.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                        <h4 style={{ fontWeight: 500, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <BarChartOutlined />
-                            Phân tích chi phí
-                        </h4>
+                <div style={{ marginBottom: 16 }}>
+                    <h4 style={{ fontWeight: 500, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <BarChartOutlined />
+                        Phân tích chi phí
+                    </h4>
+                    <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12,
+                        padding: 16,
+                        backgroundColor: '#fafafa',
+                        borderRadius: 6
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 500 }}>Tổng thu:</span>
+                            <span style={{ color: '#3f8600', fontWeight: 'bold' }}>
+                                {summary.totalIncome.toLocaleString('vi-VN')}₫
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 500 }}>Tổng chi:</span>
+                            <span style={{ color: '#f5222d', fontWeight: 'bold' }}>
+                                {summary.totalExpense.toLocaleString('vi-VN')}₫
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 500 }}>Chi phí vật tư:</span>
+                            <span style={{ color: '#fa8c16', fontWeight: 'bold' }}>
+                                {(financialStats.materialCost || 0).toLocaleString('vi-VN')}₫
+                            </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ fontWeight: 500 }}>Tổng chi phí:</span>
+                            <span style={{ color: '#f5222d', fontWeight: 'bold' }}>
+                                {(financialStats.totalCost || summary.totalExpense).toLocaleString('vi-VN')}₫
+                            </span>
+                        </div>
+
                         <div style={{
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: 12,
-                            padding: 16,
-                            backgroundColor: '#fafafa',
-                            borderRadius: 6
+                            justifyContent: 'space-between',
+                            paddingTop: 12,
+                            borderTop: '1px solid #e8e8e8'
                         }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 500 }}>Tổng thu:</span>
-                                <span style={{ color: '#3f8600', fontWeight: 'bold' }}>
-                                    {summary.totalIncome.toLocaleString('vi-VN')}₫
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 500 }}>Tổng chi:</span>
-                                <span style={{ color: '#f5222d', fontWeight: 'bold' }}>
-                                    {summary.totalExpense.toLocaleString('vi-VN')}₫
-                                </span>
-                            </div>
-
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ fontWeight: 500 }}>Lợi nhuận:</span>
-                                <span style={{
-                                    color: summary.profit >= 0 ? '#3f8600' : '#f5222d',
-                                    fontWeight: 'bold',
-                                    fontSize: 16
-                                }}>
-                                    {summary.profit.toLocaleString('vi-VN')}₫
-                                </span>
-                            </div>
+                            <span style={{ fontWeight: 600, fontSize: 16 }}>Lợi nhuận ròng:</span>
+                            <span style={{
+                                color: summary.profit >= 0 ? '#3f8600' : '#f5222d',
+                                fontWeight: 'bold',
+                                fontSize: 18
+                            }}>
+                                {summary.profit >= 0 ? '+' : ''}{summary.profit.toLocaleString('vi-VN')}₫
+                            </span>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
 
-            <Card title="Chi tiết giao dịch" style={{ marginTop: 16 }}>
-                {transactions && transactions.length > 0 ? (
+            <Card
+                title="Chi tiết giao dịch"
+                styles={{ body: { padding: '16px 0 0 0' } }}
+            >
+                {transactionList && transactionList.length > 0 ? (
                     <Table
                         columns={columns}
-                        dataSource={transactions}
-                        rowKey="id"
+                        dataSource={transactionList.map((item, index) => ({
+                            ...item,
+                            key: item.id || index
+                        }))}
+                        rowKey="key"
                         pagination={{
                             pageSize: 10,
                             showSizeChanger: true,
                             showTotal: (total) => `Tổng ${total} giao dịch`
                         }}
                         summary={() => (
-                            <Table.Summary fixed>
-                                <Table.Summary.Row style={{ backgroundColor: '#fafafa' }}>
-                                    <Table.Summary.Cell index={0} colSpan={4} style={{ fontWeight: 'bold', textAlign: 'right' }}>
-                                        TỔNG LỢI NHUẬN:
-                                    </Table.Summary.Cell>
-                                    <Table.Summary.Cell index={1} style={{ fontWeight: 'bold' }}>
-                                        <span style={{ color: summary.profit >= 0 ? '#3f8600' : '#f5222d' }}>
-                                            {summary.profit >= 0 ? '+' : ''}
-                                            {summary.profit.toLocaleString('vi-VN')}₫
-                                        </span>
-                                    </Table.Summary.Cell>
-                                    <Table.Summary.Cell index={2}></Table.Summary.Cell>
-                                </Table.Summary.Row>
-                            </Table.Summary>
+                            transactionList.length > 0 ? (
+                                <Table.Summary fixed>
+                                    <Table.Summary.Row style={{ backgroundColor: '#fafafa' }}>
+                                        <Table.Summary.Cell index={0} colSpan={4} style={{ fontWeight: 'bold', textAlign: 'right' }}>
+                                            TỔNG LỢI NHUẬN:
+                                        </Table.Summary.Cell>
+                                        <Table.Summary.Cell index={1} style={{ fontWeight: 'bold' }}>
+                                            <span style={{ color: summary.profit >= 0 ? '#3f8600' : '#f5222d' }}>
+                                                {summary.profit >= 0 ? '+' : ''}
+                                                {summary.profit.toLocaleString('vi-VN')}₫
+                                            </span>
+                                        </Table.Summary.Cell>
+                                        <Table.Summary.Cell index={2}></Table.Summary.Cell>
+                                    </Table.Summary.Row>
+                                </Table.Summary>
+                            ) : null
                         )}
                     />
                 ) : (
                     <Empty
                         description="Không có giao dịch nào"
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        style={{ padding: '40px 0' }}
                     />
                 )}
             </Card>

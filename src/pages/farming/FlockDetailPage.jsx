@@ -38,7 +38,13 @@ const FlockDetailPage = () => {
   const [schedules, setSchedules] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [error, setError] = useState(null);
-
+  const [financialStats, setFinancialStats] = useState({
+    totalIncome: 0,
+    totalExpense: 0,
+    netProfit: 0,
+    materialCost: 0,
+    totalCost: 0
+  });
   // State cho modals
   const [showDailyLogModal, setShowDailyLogModal] = useState(false);
   const [showSellModal, setShowSellModal] = useState(false);
@@ -61,8 +67,26 @@ const FlockDetailPage = () => {
 
       // Load giao dịch tài chính
       const transactionsResponse = await flockApi.getTransactions(id);
-      setTransactions(transactionsResponse.data?.data || transactionsResponse.data || []);
 
+      const responseData = transactionsResponse?.data;
+
+      if (responseData) {
+        // Lấy mảng transactions từ response
+        const transactionsArray = responseData.transactions || [];
+        setTransactions(Array.isArray(transactionsArray) ? transactionsArray : []);
+
+        // Lưu thêm thông tin thống kê
+        setFinancialStats({
+          totalIncome: responseData.totalIncome || 0,
+          totalExpense: responseData.totalExpense || 0,
+          netProfit: responseData.netProfit || 0,
+          materialCost: responseData.materialCost || 0,
+          totalCost: responseData.totalCost || 0
+        });
+      } else {
+        console.log('No data in response');
+        setTransactions([]);
+      }
       // Load lịch trình
       const schedulesResponse = await flockApi.getSchedules(id);
       setSchedules(schedulesResponse.data?.data || schedulesResponse.data || []);
@@ -167,8 +191,16 @@ const FlockDetailPage = () => {
 
   if (loading && !flock) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Spin size="large" tip="Đang tải dữ liệu đàn gà..." />
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400, flexDirection: 'column' }}>
+        <div className="ant-spin ant-spin-lg">
+          <span className="ant-spin-dot ant-spin-dot-spin">
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+          </span>
+        </div>
+        <div style={{ marginTop: 16 }}>Đang tải dữ liệu đàn gà...</div>
       </div>
     );
   }
@@ -204,8 +236,8 @@ const FlockDetailPage = () => {
         </Button>
       </div>
 
-      {/* Header */}
-      <FlockHeader flock={flock} />
+      {/* Header - THÊM loading prop */}
+      <FlockHeader flock={flock} loading={loading} />
 
       {/* Action buttons */}
       <div style={{
@@ -325,6 +357,7 @@ const FlockDetailPage = () => {
                   flock={flock}
                   loading={loading}
                   error={error}
+                  financialStats={financialStats}
                 />
               )
             },
