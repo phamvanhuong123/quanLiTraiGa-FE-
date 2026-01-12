@@ -17,14 +17,7 @@ import materialApi from "~/api/materialApi";
 
 const { Option } = Select;
 
-export default function MaterialsTab() {
-  const [data, setData] = useState([]);
-  
-  const [open, setOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [form] = Form.useForm();
-
-  const MATERIAL_TYPE_META = {
+const MATERIAL_TYPE_META = {
   FOOD: {
     color: "blue",
     label: "Thức ăn",
@@ -34,6 +27,21 @@ export default function MaterialsTab() {
     label: "Thuốc",
   },
 };
+
+const UNIT_OPTIONS = {
+  FOOD: ["Bao", "Kg"],
+  MEDICINE: ["Chai", "Gói", "Viên", "Ống"],
+};
+
+export default function MaterialsTab() {
+  const [data, setData] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [form] = Form.useForm();
+
+  const selectedType = Form.useWatch("type", form);
+
+  // ================= MODAL =================
   const openAddModal = () => {
     setEditingItem(null);
     form.resetFields();
@@ -41,20 +49,18 @@ export default function MaterialsTab() {
   };
 
   const openEditModal = (record) => {
-    
     setEditingItem(record);
     form.setFieldsValue(record);
-    
     setOpen(true);
   };
 
+  // ================= SUBMIT =================
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      console.log(values)
+
       if (editingItem) {
-        const id = form.getFieldValue("id")
-        await materialApi.update(id,values)
+        await materialApi.update(editingItem.id, values);
         setData((prev) =>
           prev.map((item) =>
             item.id === editingItem.id ? { ...item, ...values } : item
@@ -62,22 +68,19 @@ export default function MaterialsTab() {
         );
         message.success("Cập nhật vật tư thành công");
       } else {
-        
-        const response = await materialApi.create(values);
-
-        setData((prev) => [ { key: Date.now(), ...response.data },...prev]);
-
+        const res = await materialApi.create(values);
+        setData((prev) => [res.data, ...prev]);
         message.success("Thêm vật tư thành công");
       }
 
       setOpen(false);
+      form.resetFields();
     } catch (e) {
-      
-      message.error(`Đã có lỗi xảy ra, vui lòng thử lại : ${e}`);
+      message.error("Đã có lỗi xảy ra, vui lòng thử lại");
     }
   };
 
-
+  // ================= DELETE =================
   const handleDelete = async (id) => {
     try {
       await materialApi.delete(id);
@@ -88,6 +91,7 @@ export default function MaterialsTab() {
     }
   };
 
+  // ================= TABLE =================
   const columns = [
     {
       title: "Tên vật tư",
@@ -99,7 +103,9 @@ export default function MaterialsTab() {
       dataIndex: "type",
       key: "type",
       render: (type) => (
-        <Tag color={MATERIAL_TYPE_META[type].color}>{MATERIAL_TYPE_META[type].label}</Tag>
+        <Tag color={MATERIAL_TYPE_META[type]?.color}>
+          {MATERIAL_TYPE_META[type]?.label}
+        </Tag>
       ),
     },
     {
@@ -132,13 +138,17 @@ export default function MaterialsTab() {
     },
   ];
 
+  // ================= FETCH =================
   useEffect(() => {
-    const fetchMaterialApi = async () => {
-      const res = await materialApi.list();
-      console.log(res);
-      setData(res.data);
+    const fetchMaterials = async () => {
+      try {
+        const res = await materialApi.list();
+        setData(res.data);
+      } catch (e) {
+        message.error("Không tải được danh sách vật tư");
+      }
     };
-    fetchMaterialApi();
+    fetchMaterials();
   }, []);
 
   return (
@@ -149,7 +159,12 @@ export default function MaterialsTab() {
         </Button>
       </Space>
 
-      <Table columns={columns} dataSource={data} pagination={{ pageSize: 5 }} />
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={data}
+        pagination={{ pageSize: 5 }}
+      />
 
       <Modal
         title={editingItem ? "Sửa vật tư" : "Thêm vật tư"}
@@ -158,6 +173,7 @@ export default function MaterialsTab() {
         onCancel={() => setOpen(false)}
         okText="Lưu"
         cancelText="Hủy"
+        destroyOnClose
       >
         <Form form={form} layout="vertical">
           <Form.Item
@@ -165,8 +181,8 @@ export default function MaterialsTab() {
             label="Tên vật tư"
             rules={[
               { required: true, message: "Vui lòng nhập tên vật tư" },
-              {min : 2, message : "Tên vật tư phải có ít nhất 2 kí tự"},
-              {max : 100, message : "Tên vật tư không được vượt quá 100 kí tự"},
+              { min: 2, message: "Tên vật tư phải có ít nhất 2 ký tự" },
+              { max: 100, message: "Tên vật tư không được vượt quá 100 ký tự" },
             ]}
           >
             <Input />
@@ -178,7 +194,7 @@ export default function MaterialsTab() {
             rules={[{ required: true, message: "Vui lòng chọn loại vật tư" }]}
           >
             <Select placeholder="Chọn loại">
-              <Option value="FOOD">Thức Ăn</Option>
+              <Option value="FOOD">Thức ăn</Option>
               <Option value="MEDICINE">Thuốc</Option>
             </Select>
           </Form.Item>
@@ -186,9 +202,15 @@ export default function MaterialsTab() {
           <Form.Item
             name="unit"
             label="Đơn vị tính"
-            rules={[{ required: true, message: "Vui lòng nhập đơn vị tính" }]}
+            rules={[{ required: true, message: "Vui lòng chọn đơn vị tính" }]}
           >
-            <Input />
+            <Select placeholder="Chọn đơn vị" disabled={!selectedType}>
+              {(UNIT_OPTIONS[selectedType] || []).map((unit) => (
+                <Option key={unit} value={unit}>
+                  {unit}
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
         </Form>
       </Modal>
