@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Divider, Alert, Tag } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Modal, Form, Input, InputNumber, DatePicker, Select, Button, Divider, Alert, Tag, Spin, message } from 'antd';
 import { PlusOutlined, DeleteOutlined, CalculatorOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { mockMaterials } from '../constants/mockData';
+import flockApi from '../../../api/flockApi';
+import inventoryApi from '../../../api/inventoryApi';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -10,6 +11,36 @@ const { TextArea } = Input;
 const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false }) => {
     const [form] = Form.useForm();
     const [materialRows, setMaterialRows] = useState([{ id: 1, materialId: null, quantityUsed: 1 }]);
+    const [availableSupplies, setAvailableSupplies] = useState([]);
+    const [loadingSupplies, setLoadingSupplies] = useState(false);
+    const [errors, setErrors] = useState({});
+
+    useEffect(() => {
+        if (visible) {
+            fetchAvailableSupplies();
+            // Reset form khi mở modal
+            form.setFieldsValue({
+                logDate: dayjs(),
+                mortality: 0,
+                cull: 0,
+                notes: ''
+            });
+            setMaterialRows([{ id: 1, materialId: null, quantityUsed: 1 }]);
+        }
+    }, [visible, form]);
+
+    const fetchAvailableSupplies = async () => {
+        setLoadingSupplies(true);
+        try {
+            const response = await inventoryApi.getAvailableSupplies();
+            setAvailableSupplies(response.data?.data || response.data || []);
+        } catch (error) {
+            console.error('Error fetching available supplies:', error);
+            message.error('Không thể tải danh sách vật tư');
+        } finally {
+            setLoadingSupplies(false);
+        }
+    };
 
     const addMaterialRow = () => {
         const newId = materialRows.length > 0 ? Math.max(...materialRows.map(r => r.id)) + 1 : 1;
@@ -19,13 +50,41 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
     const removeMaterialRow = (id) => {
         if (materialRows.length > 1) {
             setMaterialRows(materialRows.filter(row => row.id !== id));
+            // Xóa lỗi của row đã xóa
+            setErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[id];
+                return newErrors;
+            });
         }
     };
 
     const handleMaterialChange = (id, field, value) => {
-        setMaterialRows(materialRows.map(row =>
+        const updatedRows = materialRows.map(row =>
             row.id === id ? { ...row, [field]: value } : row
-        ));
+        );
+
+        // Validate quantity against available stock
+        if (field === 'quantityUsed') {
+            const row = updatedRows.find(r => r.id === id);
+            if (row?.materialId) {
+                const supply = availableSupplies.find(s => s.id === row.materialId || s._id === row.materialId);
+                if (supply && value > supply.currentQuantity) {
+                    setErrors(prev => ({
+                        ...prev,
+                        [id]: `Số lượng vượt quá tồn kho (còn ${supply.currentQuantity} ${supply.unit})`
+                    }));
+                } else {
+                    setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors[id];
+                        return newErrors;
+                    });
+                }
+            }
+        }
+
+        setMaterialRows(updatedRows);
     };
 
     const validateMortality = (_, value) => {
@@ -37,21 +96,40 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
 
     const handleSubmit = () => {
         form.validateFields().then(values => {
+            // Validate material rows
+            const validRows = materialRows.filter(row =>
+                row.materialId && row.quantityUsed && row.quantityUsed > 0
+            );
+
+            if (validRows.length === 0) {
+                // Nếu không có vật tư, vẫn cho phép lưu nhật ký
+                message.warning('Không có vật tư nào được chọn. Nhật ký sẽ được lưu không có vật tư.');
+            }
+
+            // Kiểm tra các dòng có lỗi
+            const hasErrors = Object.keys(errors).length > 0;
+            if (hasErrors) {
+                message.error('Vui lòng kiểm tra thông tin vật tư');
+                return;
+            }
+
             const payload = {
-                flockId: flock.id,
+                flockId: flock.id || flock._id,
                 logDate: values.logDate.format('YYYY-MM-DD'),
                 mortality: values.mortality || 0,
                 cull: values.cull || 0,
-                notes: values.notes,
-                details: materialRows
-                    .filter(m => m.materialId && m.quantityUsed > 0)
-                    .map(m => ({
-                        materialId: m.materialId,
-                        quantityUsed: m.quantityUsed
-                    }))
+                notes: values.notes || '',
+                details: validRows.map(m => ({
+                    materialId: m.materialId,
+                    quantityUsed: m.quantityUsed
+                }))
             };
 
+            console.log('Submit payload:', payload); // Debug log
             onSave(payload);
+        }).catch(error => {
+            console.error('Form validation error:', error);
+            message.error('Vui lòng kiểm tra lại thông tin');
         });
     };
 
@@ -73,8 +151,9 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
             okText="Lưu nhật ký"
             cancelText="Hủy"
             confirmLoading={loading}
+            destroyOnClose
         >
-            <Form form={form} layout="vertical" initialValues={{ logDate: dayjs() }}>
+            <Form form={form} layout="vertical">
                 <div style={{ marginBottom: 16 }}>
                     <Alert
                         message={`Đàn hiện có ${flock?.currentQuantity || 0} con gà`}
@@ -87,6 +166,7 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
                     name="logDate"
                     label="Ngày nhật ký"
                     rules={[{ required: true, message: 'Vui lòng chọn ngày' }]}
+                    initialValue={dayjs()}
                 >
                     <DatePicker
                         format="DD/MM/YYYY"
@@ -103,15 +183,21 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
                         label="Số gà chết"
                         rules={[
                             { required: true, message: 'Vui lòng nhập số gà chết' },
+                            {
+                                type: 'number',
+                                min: 0,
+                                max: flock?.currentQuantity,
+                                message: `Số gà chết không thể lớn hơn ${flock?.currentQuantity}`
+                            },
                             { validator: validateMortality }
                         ]}
                         style={{ flex: 1 }}
+                        initialValue={0}
                     >
                         <InputNumber
                             min={0}
                             style={{ width: '100%' }}
                             placeholder="0"
-                            onChange={() => form.validateFields(['cull'])}
                         />
                     </Form.Item>
 
@@ -120,9 +206,16 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
                         label="Số gà loại"
                         rules={[
                             { required: true, message: 'Vui lòng nhập số gà loại' },
+                            {
+                                type: 'number',
+                                min: 0,
+                                max: flock?.currentQuantity,
+                                message: `Số gà loại không thể lớn hơn ${flock?.currentQuantity}`
+                            },
                             { validator: validateMortality }
                         ]}
                         style={{ flex: 1 }}
+                        initialValue={0}
                     >
                         <InputNumber
                             min={0}
@@ -146,86 +239,121 @@ const CreateDailyLogModal = ({ visible, onCancel, onSave, flock, loading = false
                 <Divider orientation="left">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <CalculatorOutlined />
-                        <span>Vật tư tiêu hao (Hệ thống sẽ tự động trừ kho theo nguyên tắc FIFO)</span>
+                        <span>Vật tư tiêu hao</span>
                     </div>
                 </Divider>
 
-                <div style={{ marginBottom: 16 }}>
-                    {materialRows.map((row) => (
-                        <div key={row.id} style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            gap: 12,
-                            padding: 12,
-                            backgroundColor: '#fafafa',
-                            borderRadius: 6,
-                            marginBottom: 12
-                        }}>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ marginBottom: 12 }}>
-                                    <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
-                                        Vật tư
-                                    </label>
-                                    <Select
-                                        placeholder="Chọn vật tư"
-                                        value={row.materialId}
-                                        onChange={(value) => handleMaterialChange(row.id, 'materialId', value)}
-                                        style={{ width: '100%' }}
-                                    >
-                                        {mockMaterials.map(m => (
-                                            <Option key={m.id} value={m.id}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                    <span>{m.name}</span>
+                {loadingSupplies ? (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                        <Spin tip="Đang tải danh sách vật tư..." />
+                    </div>
+                ) : (
+                    <>
+                        <div style={{ marginBottom: 16 }}>
+                            {materialRows.map((row) => {
+                                const selectedSupply = availableSupplies.find(s =>
+                                    s.id === row.materialId || s._id === row.materialId
+                                );
+                                const availableQuantity = selectedSupply?.currentQuantity || 0;
+
+                                return (
+                                    <div key={row.id} style={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        gap: 12,
+                                        padding: 12,
+                                        backgroundColor: '#fafafa',
+                                        borderRadius: 6,
+                                        marginBottom: 12
+                                    }}>
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ marginBottom: 12 }}>
+                                                <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
+                                                    Vật tư
+                                                </label>
+                                                <Select
+                                                    placeholder="Chọn vật tư"
+                                                    value={row.materialId}
+                                                    onChange={(value) => handleMaterialChange(row.id, 'materialId', value)}
+                                                    style={{ width: '100%' }}
+                                                    disabled={availableSupplies.length === 0}
+                                                >
+                                                    <Option value={null}>-- Chọn vật tư --</Option>
+                                                    {availableSupplies.map(item => (
+                                                        <Option key={item.id || item._id} value={item.id || item._id}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                <span>{item.name}</span>
+                                                                <span style={{ color: '#999', fontSize: 12 }}>
+                                                                    (Còn: {item.currentQuantity} {item.unit})
+                                                                </span>
+                                                            </div>
+                                                        </Option>
+                                                    ))}
+                                                </Select>
+                                            </div>
+
+                                            <div>
+                                                <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
+                                                    Số lượng sử dụng {selectedSupply && `(tối đa: ${availableQuantity} ${selectedSupply.unit})`}
+                                                </label>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                    <InputNumber
+                                                        min={0.1}
+                                                        step={0.1}
+                                                        max={availableQuantity}
+                                                        value={row.quantityUsed}
+                                                        onChange={(value) => handleMaterialChange(row.id, 'quantityUsed', value)}
+                                                        style={{ flex: 1 }}
+                                                        placeholder="0"
+                                                        disabled={!row.materialId}
+                                                    />
                                                     <span style={{ color: '#999', fontSize: 12 }}>
-                                                        ({m.type === 'FOOD' ? 'Thức ăn' : m.type === 'MEDICINE' ? 'Thuốc' : 'Vaccine'})
+                                                        {selectedSupply?.unit || 'đơn vị'}
                                                     </span>
                                                 </div>
-                                            </Option>
-                                        ))}
-                                    </Select>
-                                </div>
+                                                {errors[row.id] && (
+                                                    <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 4 }}>
+                                                        {errors[row.id]}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
 
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, color: '#666' }}>
-                                        Số lượng sử dụng
-                                    </label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <InputNumber
-                                            min={0.1}
-                                            step={0.1}
-                                            value={row.quantityUsed}
-                                            onChange={(value) => handleMaterialChange(row.id, 'quantityUsed', value)}
-                                            style={{ flex: 1 }}
-                                            placeholder="0"
+                                        <Button
+                                            type="text"
+                                            danger
+                                            icon={<DeleteOutlined />}
+                                            onClick={() => removeMaterialRow(row.id)}
+                                            disabled={materialRows.length === 1}
+                                            style={{ marginTop: 28 }}
                                         />
-                                        <span style={{ color: '#999', fontSize: 12 }}>
-                                            {mockMaterials.find(m => m.id === row.materialId)?.unit || 'đơn vị'}
-                                        </span>
                                     </div>
-                                </div>
-                            </div>
-
-                            <Button
-                                type="text"
-                                danger
-                                icon={<DeleteOutlined />}
-                                onClick={() => removeMaterialRow(row.id)}
-                                disabled={materialRows.length === 1}
-                                style={{ marginTop: 28 }}
-                            />
+                                );
+                            })}
                         </div>
-                    ))}
-                </div>
 
-                <Button
-                    type="dashed"
-                    onClick={addMaterialRow}
-                    block
-                    icon={<PlusOutlined />}
-                    style={{ marginBottom: 16 }}
-                >
-                    Thêm vật tư tiêu hao
-                </Button>
+                        <Button
+                            type="dashed"
+                            onClick={addMaterialRow}
+                            block
+                            icon={<PlusOutlined />}
+                            style={{ marginBottom: 16 }}
+                            disabled={availableSupplies.length === 0}
+                        >
+                            Thêm vật tư tiêu hao
+                        </Button>
+
+                        {availableSupplies.length === 0 && (
+                            <Alert
+                                message="Không có vật tư nào trong kho"
+                                description="Vui lòng nhập vật tư vào kho trước khi ghi nhật ký"
+                                type="warning"
+                                showIcon
+                                style={{ marginBottom: 16 }}
+                            />
+                        )}
+                    </>
+                )}
 
                 <Form.Item
                     name="notes"

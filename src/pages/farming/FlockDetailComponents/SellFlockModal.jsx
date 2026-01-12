@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, InputNumber, DatePicker, Alert, Tag, Divider, Switch } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Form, InputNumber, DatePicker, Alert, Tag, Divider, Switch, message } from 'antd';
 import { DollarOutlined, CalculatorOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -10,23 +10,45 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
     const [totalWeight, setTotalWeight] = useState(0);
     const [amount, setAmount] = useState(0);
 
+    // Reset form khi modal mở
+    const resetForm = useCallback(() => {
+        if (!visible || !flock) return;
+
+        form.setFieldsValue({
+            soldQuantity: flock.currentQuantity || 0,
+            transactionDate: dayjs(),
+            totalWeight: undefined,
+            amount: undefined,
+        });
+
+        // Sử dụng functional updates để tránh cascading renders
+        setCloseFlock(false);
+        setPricePerKg(60000);
+        setTotalWeight(0);
+        setAmount(0);
+    }, [visible, flock, form]);
+
     useEffect(() => {
-        if (flock) {
-            form.setFieldsValue({
-                soldQuantity: flock.currentQuantity,
-                transactionDate: dayjs()
-            });
+        if (visible) {
+            // Sử dụng setTimeout để tách biệt khỏi render cycle
+            const timer = setTimeout(() => {
+                resetForm();
+            }, 0);
+
+            return () => clearTimeout(timer);
         }
-    }, [flock, form]);
+    }, [visible, resetForm]);
 
     const handleTotalWeightChange = (value) => {
-        setTotalWeight(value || 0);
-        calculateAmount(value || 0, pricePerKg);
+        const weight = value || 0;
+        setTotalWeight(weight);
+        calculateAmount(weight, pricePerKg);
     };
 
     const handlePricePerKgChange = (value) => {
-        setPricePerKg(value || 0);
-        calculateAmount(totalWeight, value || 0);
+        const price = value || 0;
+        setPricePerKg(price);
+        calculateAmount(totalWeight, price);
     };
 
     const calculateAmount = (weight, price) => {
@@ -37,21 +59,49 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
 
     const handleSubmit = () => {
         form.validateFields().then(values => {
-            const payload = {
-                flockId: flock.id,
-                soldQuantity: values.soldQuantity,
-                totalWeight: values.totalWeight,
-                pricePerKg: pricePerKg,
-                amount: values.amount,
-                transactionDate: values.transactionDate.format('YYYY-MM-DD'),
-                closeFlock: closeFlock
-            };
+            if (values.soldQuantity > flock.currentQuantity) {
+                message.error('Số lượng bán không được lớn hơn số gà hiện tại');
+                return;
+            }
 
-            onSave(payload);
+            if (closeFlock && values.soldQuantity !== flock.currentQuantity) {
+                Modal.confirm({
+                    title: 'Xác nhận đóng đàn',
+                    content: `Bạn chỉ bán ${values.soldQuantity} con trong tổng số ${flock.currentQuantity} con. Bạn có chắc chắn muốn đóng đàn không?`,
+                    onOk: () => submitData(values),
+                });
+            } else {
+                submitData(values);
+            }
+        }).catch(error => {
+            console.error('Form validation error:', error);
         });
     };
 
-    const remainingChickens = flock ? flock.currentQuantity - (form.getFieldValue('soldQuantity') || 0) : 0;
+    const submitData = (values) => {
+        const payload = {
+            flockId: flock.id,
+            soldQuantity: values.soldQuantity,
+            totalWeight: values.totalWeight,
+            pricePerKg: pricePerKg,
+            amount: values.amount,
+            transactionDate: values.transactionDate.format('YYYY-MM-DD'),
+            closeFlock: closeFlock
+        };
+
+        onSave(payload);
+    };
+
+    const soldQuantity = form.getFieldValue('soldQuantity') || 0;
+    const remainingChickens = flock ? flock.currentQuantity - soldQuantity : 0;
+
+    // Xử lý khi thay đổi số lượng bán
+    const handleSoldQuantityChange = (value) => {
+        // Nếu bán hết thì tự động check đóng đàn
+        if (value === flock?.currentQuantity) {
+            setCloseFlock(true);
+        }
+    };
 
     return (
         <Modal
@@ -68,8 +118,14 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
             okText="Xác nhận xuất bán"
             cancelText="Hủy"
             confirmLoading={loading}
+            destroyOnClose
+            afterClose={resetForm}
         >
-            <Form form={form} layout="vertical">
+            <Form
+                form={form}
+                layout="vertical"
+                preserve={false}
+            >
                 <div style={{ marginBottom: 16 }}>
                     <Alert
                         message={
@@ -100,11 +156,7 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
                         min={1}
                         max={flock?.currentQuantity}
                         style={{ width: '100%' }}
-                        onChange={(value) => {
-                            if (value === flock?.currentQuantity) {
-                                setCloseFlock(true);
-                            }
-                        }}
+                        onChange={handleSoldQuantityChange}
                     />
                 </Form.Item>
 
@@ -133,9 +185,10 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
 
                 <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
                     <Form.Item
+                        name="totalWeight"
                         label="Tổng cân nặng (kg)"
-                        style={{ flex: 1 }}
                         rules={[{ required: true, message: 'Vui lòng nhập cân nặng' }]}
+                        style={{ flex: 1 }}
                     >
                         <InputNumber
                             min={0.1}
@@ -147,9 +200,10 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
                     </Form.Item>
 
                     <Form.Item
+                        name="pricePerKg"
                         label="Giá bán (đ/kg)"
-                        style={{ flex: 1 }}
                         initialValue={60000}
+                        style={{ flex: 1 }}
                     >
                         <InputNumber
                             min={1000}
@@ -199,7 +253,7 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
                             <div style={{ fontSize: 14, color: '#666' }}>
                                 {closeFlock ? (
                                     <span>
-                                        Sau khi bán, đàn sẽ được đóng và chuồng <Tag color="blue">{flock?.coop.name}</Tag> sẽ được giải phóng
+                                        Sau khi bán, đàn sẽ được đóng và chuồng sẽ được giải phóng
                                     </span>
                                 ) : (
                                     <span>
