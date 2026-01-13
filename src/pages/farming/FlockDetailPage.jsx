@@ -1,13 +1,13 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { Tabs, Card, Button, Space, Spin, message, Alert } from 'antd';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Tabs, Card, Button, Space, Spin, message, Alert, Modal } from 'antd';
 import {
   DollarOutlined,
   CalendarOutlined,
   BookOutlined,
   InfoCircleOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  ArrowLeftOutlined
 } from '@ant-design/icons';
 
 // Components
@@ -19,23 +19,17 @@ import ScheduleTab from '../farming/FlockDetailComponents/ScheduleTab';
 import FinanceTab from '../farming/FlockDetailComponents/FinanceTab';
 import InfoTab from '../farming/FlockDetailComponents/InfoTab';
 
-// Mock data và API
-import {
-  mockFlockData,
-  mockDailyLogs,
-  mockSchedules,
-  mockTransactions,
-  mockMaterials,
-  calculateFlockStats
-} from '../farming/constants/mockData';
-import { mockFlockApi } from '../../api/flockApi';
+// API
+import flockApi from '../../api/flockApi';
+import inventoryApi from '../../api/inventoryApi';
 
 const { TabPane } = Tabs;
 
 const FlockDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('dailyLogs');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // State cho dữ liệu
@@ -43,7 +37,14 @@ const FlockDetailPage = () => {
   const [dailyLogs, setDailyLogs] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [transactions, setTransactions] = useState([]);
-
+  const [error, setError] = useState(null);
+  const [financialStats, setFinancialStats] = useState({
+    totalIncome: 0,
+    totalExpense: 0,
+    netProfit: 0,
+    materialCost: 0,
+    totalCost: 0
+  });
   // State cho modals
   const [showDailyLogModal, setShowDailyLogModal] = useState(false);
   const [showSellModal, setShowSellModal] = useState(false);
@@ -51,21 +52,48 @@ const FlockDetailPage = () => {
   // Load dữ liệu ban đầu
   const loadData = async () => {
     setLoading(true);
+    setError(null);
     try {
-      // Giả lập API calls - sau này thay bằng API thật
-      const flockResponse = await mockFlockApi.getById(id);
-      const logsResponse = await mockFlockApi.getDailyLogs(id);
-      const schedulesResponse = await mockFlockApi.getSchedules(id);
-      const transactionsResponse = await mockFlockApi.getTransactions(id);
+      // Load thông tin đàn
+      const flockResponse = await flockApi.getById(id);
+      if (!flockResponse.data) {
+        throw new Error('Không tìm thấy đàn gà');
+      }
+      setFlock(flockResponse.data);
 
-      const flockData = calculateFlockStats(flockResponse.data);
+      // Load nhật ký
+      const logsResponse = await flockApi.getDailyLogs(id);
+      setDailyLogs(logsResponse.data?.data || logsResponse.data || []);
 
-      setFlock(flockData);
-      setDailyLogs(logsResponse.data || []);
-      setSchedules(schedulesResponse.data || []);
-      setTransactions(transactionsResponse.data || []);
+      // Load giao dịch tài chính
+      const transactionsResponse = await flockApi.getTransactions(id);
+
+      const responseData = transactionsResponse?.data;
+
+      if (responseData) {
+        // Lấy mảng transactions từ response
+        const transactionsArray = responseData.transactions || [];
+        setTransactions(Array.isArray(transactionsArray) ? transactionsArray : []);
+
+        // Lưu thêm thông tin thống kê
+        setFinancialStats({
+          totalIncome: responseData.totalIncome || 0,
+          totalExpense: responseData.totalExpense || 0,
+          netProfit: responseData.netProfit || 0,
+          materialCost: responseData.materialCost || 0,
+          totalCost: responseData.totalCost || 0
+        });
+      } else {
+        console.log('No data in response');
+        setTransactions([]);
+      }
+      // Load lịch trình
+      const schedulesResponse = await flockApi.getSchedules(id);
+      setSchedules(schedulesResponse.data?.data || schedulesResponse.data || []);
+
     } catch (error) {
       console.error('Error loading flock data:', error);
+      setError(error.response?.data?.message || 'Không thể tải dữ liệu đàn gà');
       message.error('Không thể tải dữ liệu đàn gà');
     } finally {
       setLoading(false);
@@ -82,46 +110,26 @@ const FlockDetailPage = () => {
   const handleCreateDailyLog = async (data) => {
     setSubmitting(true);
     try {
-      const response = await mockFlockApi.createDailyLog(data);
+      // Gọi API
+      await flockApi.createDailyLog(data);
 
-      if (response.data.success) {
-        message.success(response.data.message);
-        setShowDailyLogModal(false);
+      // Nếu không có lỗi (tức là API thành công)
+      message.success('Đã lưu nhật ký thành công');
+      setShowDailyLogModal(false);
 
-        // Lấy thông tin vật tư từ data.details và tìm thông tin đầy đủ từ mockMaterials
-        const materials = data.details.map(detail => {
-          const material = mockMaterials.find(m => m.id === detail.materialId);
-          return material ? {
-            name: material.name,
-            quantity: detail.quantityUsed,
-            unit: material.unit
-          } : null;
-        }).filter(item => item !== null); // Loại bỏ null nếu có
-
-        const newLog = {
-          id: dailyLogs.length + 1,
-          logDate: data.logDate,
-          mortality: data.mortality || 0,
-          cull: data.cull || 0,
-          notes: data.notes,
-          materials: materials, // <-- Đã thêm vật tư
-          createdBy: { fullName: "Người dùng hiện tại" }
-        };
-
-        // Giả lập cập nhật số lượng đàn
-        if (flock) {
-          const updatedFlock = {
-            ...flock,
-            currentQuantity: flock.currentQuantity - (data.mortality + data.cull)
-          };
-          setFlock(updatedFlock);
-        }
-
-        setDailyLogs([newLog, ...dailyLogs]);
-      }
+      // Cập nhật dữ liệu
+      await loadData();
     } catch (error) {
       console.error('Error creating daily log:', error);
-      message.error('Không thể lưu nhật ký');
+
+      // Xử lý lỗi
+      if (error.response && error.response.data) {
+        message.error(error.response.data.message || 'Không thể lưu nhật ký');
+      } else if (error.message) {
+        message.error(error.message);
+      } else {
+        message.error('Không thể lưu nhật ký');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -131,52 +139,48 @@ const FlockDetailPage = () => {
   const handleSellFlock = async (data) => {
     setSubmitting(true);
     try {
-      const response = await mockFlockApi.sellFlock(data);
+      console.log('Sending sell request with data:', data);
 
-      if (response.data.success) {
-        message.success(response.data.message);
-        setShowSellModal(false);
+      // Gọi API
+      const response = await flockApi.sellFlock(data);
+      console.log('Sell API response:', response);
 
-        // Cập nhật local state
-        const newTransaction = {
-          id: transactions.length + 1,
-          transactionDate: data.transactionDate,
-          type: "INCOME",
-          category: "Xuất bán gà",
-          amount: data.amount,
-          description: `Bán ${data.soldQuantity} con gà`,
-          createdBy: { fullName: "Người dùng hiện tại" }
-        };
+      // Nếu không có lỗi (tức là API thành công)
+      message.success('Đã xuất bán thành công');
+      setShowSellModal(false);
 
-        // Cập nhật đàn
-        if (flock) {
-          const newQuantity = flock.currentQuantity - data.soldQuantity;
-          const updatedFlock = {
-            ...flock,
-            currentQuantity: newQuantity,
-            status: data.closeFlock ? "SOLD" : flock.status
-          };
-          setFlock(updatedFlock);
-        }
+      // Cập nhật thông tin đàn
+      await loadData();
 
-        setTransactions([newTransaction, ...transactions]);
+      // Thông báo thêm nếu đóng đàn
+      if (data.closeFlock) {
+        message.info('Đã đóng đàn và giải phóng chuồng');
       }
+
     } catch (error) {
       console.error('Error selling flock:', error);
-      message.error('Không thể xuất bán đàn');
+      console.error('Error details:', error.response?.data);
+
+      // Xử lý lỗi
+      if (error.response && error.response.data) {
+        message.error(error.response.data.message || 'Không thể xuất bán đàn');
+      } else if (error.message) {
+        message.error(error.message);
+      } else {
+        message.error('Không thể xuất bán đàn');
+      }
     } finally {
       setSubmitting(false);
     }
   };
-
   // Xử lý hoàn thành lịch trình
   const handleCompleteSchedule = async (scheduleId, status) => {
     try {
-      await mockFlockApi.completeSchedule(scheduleId);
+      await flockApi.completeSchedule(scheduleId);
 
       // Cập nhật local state
       const updatedSchedules = schedules.map(s =>
-        s.id === scheduleId ? { ...s, status } : s
+        s.id === scheduleId ? { ...s, status: status === 'DONE' ? 'DONE' : 'PENDING' } : s
       );
       setSchedules(updatedSchedules);
 
@@ -187,22 +191,39 @@ const FlockDetailPage = () => {
     }
   };
 
+  const handleBack = () => {
+    navigate('/flocks');
+  };
+
   if (loading && !flock) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
-        <Spin size="large" tip="Đang tải dữ liệu đàn gà..." />
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400, flexDirection: 'column' }}>
+        <div className="ant-spin ant-spin-lg">
+          <span className="ant-spin-dot ant-spin-dot-spin">
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+            <i className="ant-spin-dot-item"></i>
+          </span>
+        </div>
+        <div style={{ marginTop: 16 }}>Đang tải dữ liệu đàn gà...</div>
       </div>
     );
   }
 
-  if (!flock) {
+  if (error || !flock) {
     return (
       <div style={{ padding: 24 }}>
         <Alert
           message="Không tìm thấy đàn gà"
-          description={`Không thể tìm thấy đàn gà với ID: ${id}`}
+          description={error || `Không thể tìm thấy đàn gà với ID: ${id}`}
           type="error"
           showIcon
+          action={
+            <Button type="primary" onClick={handleBack}>
+              <ArrowLeftOutlined /> Quay lại danh sách
+            </Button>
+          }
         />
       </div>
     );
@@ -210,8 +231,19 @@ const FlockDetailPage = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <FlockHeader flock={flock} />
+      {/* Back button */}
+      <div style={{ marginBottom: 16 }}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={handleBack}
+          type="text"
+        >
+          Quay lại danh sách
+        </Button>
+      </div>
+
+      {/* Header - THÊM loading prop */}
+      <FlockHeader flock={flock} loading={loading} />
 
       {/* Action buttons */}
       <div style={{
@@ -238,22 +270,26 @@ const FlockDetailPage = () => {
             </Button>
           </Space>
           <Space>
-            <Button
-              type="primary"
-              onClick={() => setShowDailyLogModal(true)}
-              disabled={flock.status === 'SOLD'}
-            >
-              Ghi nhật ký hôm nay
-            </Button>
-            <Button
-              type="primary"
-              danger
-              icon={<DollarOutlined />}
-              onClick={() => setShowSellModal(true)}
-              disabled={flock.status === 'SOLD'}
-            >
-              Xuất bán
-            </Button>
+            {flock.status !== 'CLOSED' && flock.status !== 'SOLD' && flock.status !== 'Đã bán' && (
+              <>
+                <Button
+                  type="primary"
+                  onClick={() => setShowDailyLogModal(true)}
+                  disabled={flock.status === 'SOLD' || flock.status === 'CLOSED'}
+                >
+                  Ghi nhật ký hôm nay
+                </Button>
+                <Button
+                  type="primary"
+                  danger
+                  icon={<DollarOutlined />}
+                  onClick={() => setShowSellModal(true)}
+                  disabled={flock.status === 'SOLD' || flock.status === 'CLOSED'}
+                >
+                  Xuất bán
+                </Button>
+              </>
+            )}
           </Space>
         </div>
       </div>
@@ -278,6 +314,7 @@ const FlockDetailPage = () => {
                   logs={dailyLogs}
                   onCreateLog={() => setShowDailyLogModal(true)}
                   loading={loading}
+                  error={error}
                 />
               )
             },
@@ -325,6 +362,8 @@ const FlockDetailPage = () => {
                   transactions={transactions}
                   flock={flock}
                   loading={loading}
+                  error={error}
+                  financialStats={financialStats}
                 />
               )
             },
