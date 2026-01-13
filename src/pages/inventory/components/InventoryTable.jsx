@@ -56,8 +56,7 @@ export default function InventoryTable({ data, onEdit, onDelete }) {
       width: 150,
       render: (_, r) => (
         <div>
-          <div style={{ fontWeight: 500 }}>{r.material.name}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{r.material.code}</div>
+          <div style={{ fontWeight: 500 }}>{r.materialName}</div>
         </div>
       )
     },
@@ -66,8 +65,8 @@ export default function InventoryTable({ data, onEdit, onDelete }) {
       width: 150,
       render: (_, r) => (
         <div>
-          <div>{r.supplier.name}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{r.supplier.phone}</div>
+          <div>{r.supplierName}</div>
+          
         </div>
       )
     },
@@ -77,7 +76,7 @@ export default function InventoryTable({ data, onEdit, onDelete }) {
       render: (_, r) => (
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontWeight: 500 }}>{dayjs(r.importDate).format("DD/MM/YYYY")}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>{dayjs(r.importDate).format("HH:mm")}</div>
+         
         </div>
       )
     },
