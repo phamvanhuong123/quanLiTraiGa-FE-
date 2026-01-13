@@ -11,6 +11,7 @@ import {
   Spin,
   Alert,
   message,
+  Popconfirm,
 } from "antd";
 import {
   ReloadOutlined,
@@ -23,6 +24,7 @@ import {
 
 import flockApi from "../../api/flockApi";
 import ImportFlockModal from "./components/ImportFlockModal";
+import EditFlockModal from "./components/EditFlockModal";
 
 export default function FlockListPage() {
   const navigate = useNavigate();
@@ -30,7 +32,10 @@ export default function FlockListPage() {
   const [flocks, setFlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [openImport, setOpenImport] = useState(false);
+  const [openEdit, setOpenEdit] = useState(false);
+  const [editingFlock, setEditingFlock] = useState(null);
 
   /* ================= FETCH DATA ================= */
   const fetchData = async () => {
@@ -52,11 +57,22 @@ export default function FlockListPage() {
     fetchData();
   }, []);
 
+  /* ================= DELETE ================= */
+  const handleDelete = async (id) => {
+    try {
+      await flockApi.deleteFlock(id);
+      message.success("Xoá đàn thành công");
+      fetchData();
+    } catch (err) {
+      message.error(err.response?.data?.message || "Không thể xoá đàn");
+    }
+  };
+
   /* ================= HELPER ================= */
   const formatDate = (date) =>
     date ? new Date(date).toLocaleDateString("vi-VN") : "-";
 
-  /* ================= THỐNG KÊ ================= */
+  /* ================= STATS ================= */
   const totalFlocks = flocks.length;
 
   const totalInitialQuantity = flocks.reduce(
@@ -69,69 +85,88 @@ export default function FlockListPage() {
     0
   );
 
-  const raisingCount = flocks.filter(
-    (f) =>
-      f.status === "RAISING" ||
-      f.status === "ACTIVE" ||
-      f.status === "Đang nuôi"
-  ).length;
+  const raisingCount = flocks.filter((f) => f.status === "RAISING").length;
 
-  /* ================= TABLE COLUMNS ================= */
+  /* ================= TABLE ================= */
   const columns = [
     {
       title: "Đàn gà",
-      dataIndex: "name",
       render: (_, r) => (
         <>
           <div style={{ fontWeight: 600 }}>{r.name}</div>
-          {r.code && <div style={{ color: "#888" }}>{r.code}</div>}
+          {r.batchCode && <div style={{ color: "#888" }}>{r.batchCode}</div>}
         </>
       ),
     },
     {
       title: "Ngày nhập",
-      render: (_, r) => formatDate(r.importDate || r.createdAt),
+      render: (_, r) => formatDate(r.importDate),
     },
     {
       title: "Giống",
-      render: (_, r) => r.breed?.name || r.breed || "-",
+      dataIndex: "breedName",
     },
     {
       title: "SL ban đầu",
       align: "center",
-      render: (_, r) => r.initialQuantity ?? 0,
+      dataIndex: "initialQuantity",
+      render: (v) => <span style={{ fontWeight: 600 }}>{v}</span>,
     },
     {
       title: "SL hiện tại",
       align: "center",
-      render: (_, r) => (
-        <span style={{ fontWeight: 600, color: "#237804" }}>
-          {r.currentQuantity ?? 0}
-        </span>
+      dataIndex: "currentQuantity",
+      render: (v) => (
+        <span style={{ fontWeight: 600, color: "#237804" }}>{v}</span>
       ),
     },
     {
       title: "Chuồng",
+      dataIndex: "coopName",
       align: "center",
-      render: (_, r) => r.coop?.name || "-",
     },
     {
       title: "Trạng thái",
       align: "center",
-      render: (_, r) => {
-        if (r.status === "RAISING" || r.status === "ACTIVE")
-          return <Tag color="green">🟢 Đang nuôi</Tag>;
-        if (r.status === "SOLD") return <Tag color="blue">🔵 Đã bán</Tag>;
-        return <Tag>⚪ Khác</Tag>;
-      },
+      render: (_, r) =>
+        r.status === "RAISING" ? (
+          <Tag color="green">Đang nuôi</Tag>
+        ) : (
+          <Tag color="blue">Đã bán</Tag>
+        ),
     },
     {
       title: "Hành động",
       align: "center",
       render: (_, r) => (
-        <Button type="link" onClick={() => navigate(`/flocks/${r.id}`)}>
-          Chi tiết
-        </Button>
+        <>
+          <Button type="link" onClick={() => navigate(`/flocks/${r.id}`)}>
+            Chi tiết
+          </Button>
+
+          {r.status === "RAISING" && (
+            <>
+              <Button
+                type="link"
+                onClick={() => {
+                  setEditingFlock(r);
+                  setOpenEdit(true);
+                }}
+              >
+                Sửa
+              </Button>
+
+              <Popconfirm
+                title="Bạn có chắc muốn xoá đàn này?"
+                onConfirm={() => handleDelete(r.id)}
+              >
+                <Button type="link" danger>
+                  Xoá
+                </Button>
+              </Popconfirm>
+            </>
+          )}
+        </>
       ),
     },
   ];
@@ -160,67 +195,47 @@ export default function FlockListPage() {
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setOpenImport(true)}
-            style={{ boxShadow: "0 2px 6px rgba(24,144,255,0.35)" }}
           >
             Thêm đàn
           </Button>
         </Col>
       </Row>
 
-      {/* THỐNG KÊ */}
+      {/* STATS */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
-          <Card
-            bordered={false}
-            style={{ background: "#f0f5ff", borderRadius: 12 }}
-          >
+          <Card bordered={false}>
             <Statistic
               title="Tổng đàn"
               value={totalFlocks}
-              prefix={<TeamOutlined style={{ color: "#2f54eb" }} />}
-              valueStyle={{ color: "#1d39c4", fontWeight: 600 }}
+              prefix={<TeamOutlined />}
             />
           </Card>
         </Col>
-
         <Col span={6}>
-          <Card
-            bordered={false}
-            style={{ background: "#fff7e6", borderRadius: 12 }}
-          >
+          <Card bordered={false}>
             <Statistic
               title="SL ban đầu"
               value={totalInitialQuantity}
-              prefix={<InboxOutlined style={{ color: "#fa8c16" }} />}
-              valueStyle={{ color: "#d46b08", fontWeight: 600 }}
+              prefix={<InboxOutlined />}
             />
           </Card>
         </Col>
-
         <Col span={6}>
-          <Card
-            bordered={false}
-            style={{ background: "#f6ffed", borderRadius: 12 }}
-          >
+          <Card bordered={false}>
             <Statistic
               title="SL hiện tại"
               value={totalCurrentQuantity}
-              prefix={<RiseOutlined style={{ color: "#52c41a" }} />}
-              valueStyle={{ color: "#237804", fontWeight: 600 }}
+              prefix={<RiseOutlined />}
             />
           </Card>
         </Col>
-
         <Col span={6}>
-          <Card
-            bordered={false}
-            style={{ background: "#e6fffb", borderRadius: 12 }}
-          >
+          <Card bordered={false}>
             <Statistic
               title="Đang nuôi"
               value={raisingCount}
-              prefix={<CheckCircleOutlined style={{ color: "#13c2c2" }} />}
-              valueStyle={{ color: "#006d75", fontWeight: 600 }}
+              prefix={<CheckCircleOutlined />}
             />
           </Card>
         </Col>
@@ -236,26 +251,13 @@ export default function FlockListPage() {
         />
       )}
 
-      {error && (
-        <div className="mb-4">
-          <Alert
-            message="Lỗi"
-            description={error}
-            type="error"
-            showIcon
-            closable
-            onClose={() => setError(null)}
-          />
-        </div>
-      )}
-
       {/* TABLE */}
-      <Card style={{ borderRadius: 12 }}>
+      <Card>
         {loading ? (
           <Spin />
         ) : (
           <Table
-            rowKey={(r) => r.id}
+            rowKey="id"
             columns={columns}
             dataSource={flocks}
             pagination={{ pageSize: 8 }}
@@ -264,14 +266,18 @@ export default function FlockListPage() {
         )}
       </Card>
 
-      {/* MODAL */}
+      {/* MODALS */}
       <ImportFlockModal
         open={openImport}
         onClose={() => setOpenImport(false)}
-        onSuccess={async () => {
-          await fetchData();
-          message.success("Nhập đàn thành công");
-        }}
+        onSuccess={fetchData}
+      />
+
+      <EditFlockModal
+        open={openEdit}
+        flock={editingFlock}
+        onClose={() => setOpenEdit(false)}
+        onSuccess={fetchData}
       />
     </div>
   );
