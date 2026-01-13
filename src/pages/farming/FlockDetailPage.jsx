@@ -7,7 +7,8 @@ import {
   BookOutlined,
   InfoCircleOutlined,
   ReloadOutlined,
-  ArrowLeftOutlined
+  ArrowLeftOutlined,
+  PlusOutlined
 } from '@ant-design/icons';
 
 // Components
@@ -18,10 +19,11 @@ import DailyLogTab from '../farming/FlockDetailComponents/DailyLogTab';
 import ScheduleTab from '../farming/FlockDetailComponents/ScheduleTab';
 import FinanceTab from '../farming/FlockDetailComponents/FinanceTab';
 import InfoTab from '../farming/FlockDetailComponents/InfoTab';
+import CreateScheduleModal from '../farming/FlockDetailComponents/CreateScheduleModal';
 
 // API
 import flockApi from '../../api/flockApi';
-import inventoryApi from '../../api/inventoryApi';
+import scheduleApi from '../../api/scheduleApi';
 
 const { TabPane } = Tabs;
 
@@ -45,9 +47,11 @@ const FlockDetailPage = () => {
     materialCost: 0,
     totalCost: 0
   });
+
   // State cho modals
   const [showDailyLogModal, setShowDailyLogModal] = useState(false);
   const [showSellModal, setShowSellModal] = useState(false);
+  const [showCreateScheduleModal, setShowCreateScheduleModal] = useState(false);
 
   // Load dữ liệu ban đầu
   const loadData = async () => {
@@ -65,9 +69,12 @@ const FlockDetailPage = () => {
       const logsResponse = await flockApi.getDailyLogs(id);
       setDailyLogs(logsResponse.data?.data || logsResponse.data || []);
 
+      // Load lịch trình (dùng API mới)
+      const schedulesResponse = await scheduleApi.getByFlockId(id);
+      setSchedules(schedulesResponse.data?.data || schedulesResponse.data || []);
+
       // Load giao dịch tài chính
       const transactionsResponse = await flockApi.getTransactions(id);
-
       const responseData = transactionsResponse?.data;
 
       if (responseData) {
@@ -87,9 +94,6 @@ const FlockDetailPage = () => {
         console.log('No data in response');
         setTransactions([]);
       }
-      // Load lịch trình
-      const schedulesResponse = await flockApi.getSchedules(id);
-      setSchedules(schedulesResponse.data?.data || schedulesResponse.data || []);
 
     } catch (error) {
       console.error('Error loading flock data:', error);
@@ -110,19 +114,12 @@ const FlockDetailPage = () => {
   const handleCreateDailyLog = async (data) => {
     setSubmitting(true);
     try {
-      // Gọi API
       await flockApi.createDailyLog(data);
-
-      // Nếu không có lỗi (tức là API thành công)
       message.success('Đã lưu nhật ký thành công');
       setShowDailyLogModal(false);
-
-      // Cập nhật dữ liệu
       await loadData();
     } catch (error) {
       console.error('Error creating daily log:', error);
-
-      // Xử lý lỗi
       if (error.response && error.response.data) {
         message.error(error.response.data.message || 'Không thể lưu nhật ký');
       } else if (error.message) {
@@ -140,19 +137,13 @@ const FlockDetailPage = () => {
     setSubmitting(true);
     try {
       console.log('Sending sell request with data:', data);
-
-      // Gọi API
       const response = await flockApi.sellFlock(data);
       console.log('Sell API response:', response);
 
-      // Nếu không có lỗi (tức là API thành công)
       message.success('Đã xuất bán thành công');
       setShowSellModal(false);
-
-      // Cập nhật thông tin đàn
       await loadData();
 
-      // Thông báo thêm nếu đóng đàn
       if (data.closeFlock) {
         message.info('Đã đóng đàn và giải phóng chuồng');
       }
@@ -160,8 +151,6 @@ const FlockDetailPage = () => {
     } catch (error) {
       console.error('Error selling flock:', error);
       console.error('Error details:', error.response?.data);
-
-      // Xử lý lỗi
       if (error.response && error.response.data) {
         message.error(error.response.data.message || 'Không thể xuất bán đàn');
       } else if (error.message) {
@@ -173,21 +162,15 @@ const FlockDetailPage = () => {
       setSubmitting(false);
     }
   };
-  // Xử lý hoàn thành lịch trình
-  const handleCompleteSchedule = async (scheduleId, status) => {
+
+  // Xử lý tạo lịch trình mới
+  const handleCreateSchedule = async () => {
     try {
-      await flockApi.completeSchedule(scheduleId);
-
-      // Cập nhật local state
-      const updatedSchedules = schedules.map(s =>
-        s.id === scheduleId ? { ...s, status: status === 'DONE' ? 'DONE' : 'PENDING' } : s
-      );
-      setSchedules(updatedSchedules);
-
-      message.success('Đã cập nhật trạng thái công việc');
+      await loadData();
+      setShowCreateScheduleModal(false);
     } catch (error) {
-      console.error('Error completing schedule:', error);
-      message.error('Không thể cập nhật trạng thái');
+      console.error('Error creating schedule:', error);
+      message.error('Không thể tạo lịch trình');
     }
   };
 
@@ -198,15 +181,7 @@ const FlockDetailPage = () => {
   if (loading && !flock) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400, flexDirection: 'column' }}>
-        <div className="ant-spin ant-spin-lg">
-          <span className="ant-spin-dot ant-spin-dot-spin">
-            <i className="ant-spin-dot-item"></i>
-            <i className="ant-spin-dot-item"></i>
-            <i className="ant-spin-dot-item"></i>
-            <i className="ant-spin-dot-item"></i>
-          </span>
-        </div>
-        <div style={{ marginTop: 16 }}>Đang tải dữ liệu đàn gà...</div>
+        <Spin size="large" tip="Đang tải dữ liệu đàn gà..." />
       </div>
     );
   }
@@ -242,7 +217,7 @@ const FlockDetailPage = () => {
         </Button>
       </div>
 
-      {/* Header - THÊM loading prop */}
+      {/* Header */}
       <FlockHeader flock={flock} loading={loading} />
 
       {/* Action buttons */}
@@ -272,6 +247,14 @@ const FlockDetailPage = () => {
           <Space>
             {flock.status !== 'CLOSED' && flock.status !== 'SOLD' && flock.status !== 'Đã bán' && (
               <>
+                <Button
+                  type="dashed"
+                  icon={<CalendarOutlined />}
+                  onClick={() => setShowCreateScheduleModal(true)}
+                  disabled={flock.status === 'SOLD' || flock.status === 'CLOSED'}
+                >
+                  Tạo lịch trình
+                </Button>
                 <Button
                   type="primary"
                   onClick={() => setShowDailyLogModal(true)}
@@ -307,6 +290,20 @@ const FlockDetailPage = () => {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <BookOutlined />
                   Nhật ký nuôi
+                  {dailyLogs.length > 0 && (
+                    <span style={{
+                      backgroundColor: '#1890ff',
+                      color: '#fff',
+                      fontSize: 12,
+                      borderRadius: 10,
+                      padding: '0 6px',
+                      height: 18,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}>
+                      {dailyLogs.length}
+                    </span>
+                  )}
                 </span>
               ),
               children: (
@@ -344,8 +341,9 @@ const FlockDetailPage = () => {
               children: (
                 <ScheduleTab
                   schedules={schedules}
-                  onCompleteSchedule={handleCompleteSchedule}
+                  flockId={id}
                   loading={loading}
+                  onRefresh={loadData}
                 />
               )
             },
@@ -401,6 +399,13 @@ const FlockDetailPage = () => {
         onSave={handleSellFlock}
         flock={flock}
         loading={submitting}
+      />
+
+      <CreateScheduleModal
+        visible={showCreateScheduleModal}
+        onCancel={() => setShowCreateScheduleModal(false)}
+        onSuccess={handleCreateSchedule}
+        flockId={id}
       />
     </div>
   );

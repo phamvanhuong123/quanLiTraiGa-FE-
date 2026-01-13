@@ -31,7 +31,7 @@ const flockApi = {
     axiosClient.get(`/flocks/${flockId}/financial-stats`),
 
   // Lấy lịch trình
-  getSchedules: (flockId) => axiosClient.get(`/flocks/${flockId}/schedules`),
+  getSchedules: (flockId) => axiosClient.get(`/schedules/flock/${flockId}`),
 
   // Cập nhật trạng thái lịch trình
   completeSchedule: (scheduleId) =>
