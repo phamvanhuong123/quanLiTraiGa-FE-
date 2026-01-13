@@ -110,31 +110,26 @@ const FlockDetailPage = () => {
   const handleCreateDailyLog = async (data) => {
     setSubmitting(true);
     try {
-      const response = await flockApi.createDailyLog(data);
+      // Gọi API
+      await flockApi.createDailyLog(data);
 
-      if (response.data.success || response.status === 200) {
-        message.success(response.data?.message || 'Đã lưu nhật ký thành công');
-        setShowDailyLogModal(false);
+      // Nếu không có lỗi (tức là API thành công)
+      message.success('Đã lưu nhật ký thành công');
+      setShowDailyLogModal(false);
 
-        // Cập nhật thông tin đàn
-        await loadData();
-
-        // Cập nhật số lượng vật tư trong kho
-        if (data.details && data.details.length > 0) {
-          for (const detail of data.details) {
-            await inventoryApi.updateQuantity({
-              materialId: detail.materialId,
-              quantityChange: -detail.quantityUsed,
-              type: 'usage',
-              referenceId: id,
-              note: `Nhật ký ngày ${data.logDate}`
-            });
-          }
-        }
-      }
+      // Cập nhật dữ liệu
+      await loadData();
     } catch (error) {
       console.error('Error creating daily log:', error);
-      message.error(error.response?.data?.message || 'Không thể lưu nhật ký');
+
+      // Xử lý lỗi
+      if (error.response && error.response.data) {
+        message.error(error.response.data.message || 'Không thể lưu nhật ký');
+      } else if (error.message) {
+        message.error(error.message);
+      } else {
+        message.error('Không thể lưu nhật ký');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -144,29 +139,40 @@ const FlockDetailPage = () => {
   const handleSellFlock = async (data) => {
     setSubmitting(true);
     try {
+      console.log('Sending sell request with data:', data);
+
+      // Gọi API
       const response = await flockApi.sellFlock(data);
+      console.log('Sell API response:', response);
 
-      if (response.data.success || response.status === 200) {
-        message.success(response.data?.message || 'Đã xuất bán thành công');
-        setShowSellModal(false);
+      // Nếu không có lỗi (tức là API thành công)
+      message.success('Đã xuất bán thành công');
+      setShowSellModal(false);
 
-        // Cập nhật thông tin đàn
-        await loadData();
+      // Cập nhật thông tin đàn
+      await loadData();
 
-        // Nếu đóng đàn
-        if (data.closeFlock) {
-          await flockApi.closeFlock(id);
-          message.info('Đã đóng đàn và giải phóng chuồng');
-        }
+      // Thông báo thêm nếu đóng đàn
+      if (data.closeFlock) {
+        message.info('Đã đóng đàn và giải phóng chuồng');
       }
+
     } catch (error) {
       console.error('Error selling flock:', error);
-      message.error(error.response?.data?.message || 'Không thể xuất bán đàn');
+      console.error('Error details:', error.response?.data);
+
+      // Xử lý lỗi
+      if (error.response && error.response.data) {
+        message.error(error.response.data.message || 'Không thể xuất bán đàn');
+      } else if (error.message) {
+        message.error(error.message);
+      } else {
+        message.error('Không thể xuất bán đàn');
+      }
     } finally {
       setSubmitting(false);
     }
   };
-
   // Xử lý hoàn thành lịch trình
   const handleCompleteSchedule = async (scheduleId, status) => {
     try {

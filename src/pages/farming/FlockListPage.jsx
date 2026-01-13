@@ -23,6 +23,8 @@ import {
 
 import flockApi from "../../api/flockApi";
 import ImportFlockModal from "./components/ImportFlockModal";
+import { Spin, Alert, Button, message } from "antd";
+import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 
 export default function FlockListPage() {
   const navigate = useNavigate();
@@ -234,6 +236,19 @@ export default function FlockListPage() {
           showIcon
           style={{ marginBottom: 16 }}
         />
+      )}
+
+      {error && (
+        <div className="mb-4">
+          <Alert
+            message="Lỗi"
+            description={error}
+            type="error"
+            showIcon
+            closable
+            onClose={() => setError(null)}
+          />
+        </div>
       )}
 
       {/* TABLE */}

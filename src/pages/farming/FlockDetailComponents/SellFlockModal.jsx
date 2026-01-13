@@ -84,7 +84,7 @@ const SellFlockModal = ({ visible, onCancel, onSave, flock, loading = false }) =
             soldQuantity: values.soldQuantity,
             totalWeight: values.totalWeight,
             pricePerKg: pricePerKg,
-            amount: values.amount,
+            totalPrice: values.amount,
             transactionDate: values.transactionDate.format('YYYY-MM-DD'),
             closeFlock: closeFlock
         };
