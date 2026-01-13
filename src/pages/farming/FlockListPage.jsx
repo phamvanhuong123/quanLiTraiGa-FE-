@@ -236,6 +236,19 @@ export default function FlockListPage() {
         />
       )}
 
+      {error && (
+        <div className="mb-4">
+          <Alert
+            message="Lỗi"
+            description={error}
+            type="error"
+            showIcon
+            closable
+            onClose={() => setError(null)}
+          />
+        </div>
+      )}
+
       {/* TABLE */}
       <Card style={{ borderRadius: 12 }}>
         {loading ? (

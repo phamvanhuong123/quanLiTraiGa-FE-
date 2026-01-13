@@ -15,6 +15,8 @@ const inventoryApi = {
 
   // Lấy lịch sử xuất nhập tồn
   getHistory: () => axiosClient.get('/inventory/history'),
+  update: (id, payload) => axiosClient.put(`/inventory/${id}`, payload),
+  delete: (id) => axiosClient.delete(`/inventory/${id}`),
 };
 
 export default inventoryApi;
