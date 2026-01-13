@@ -29,10 +29,10 @@ const flockApi = {
   getFinancialStats: (flockId) => axiosClient.get(`/flocks/${flockId}/financial-stats`),
 
   // Lấy lịch trình
-  getSchedules: (flockId) => axiosClient.get(`/flocks/${flockId}/schedules`),
+  getSchedules: (flockId) => axiosClient.get(`/schedules/flock/${flockId}`),
 
   // Cập nhật trạng thái lịch trình
-  completeSchedule: (scheduleId) => axiosClient.put(`/schedules/${scheduleId}/complete`),
+  completeSchedule: (scheduleId) => axiosClient.post(`/schedules/${scheduleId}/complete`),
 
   // Lấy danh sách giống
   getBreeds: () => axiosClient.get('/breeds'),
