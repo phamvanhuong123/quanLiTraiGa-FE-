@@ -1,5 +1,26 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Table,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Button,
+  Tag,
+  Spin,
+  Alert,
+  message,
+} from "antd";
+import {
+  ReloadOutlined,
+  PlusOutlined,
+  TeamOutlined,
+  InboxOutlined,
+  RiseOutlined,
+  CheckCircleOutlined,
+} from "@ant-design/icons";
+
 import flockApi from "../../api/flockApi";
 import ImportFlockModal from "./components/ImportFlockModal";
 import { Spin, Alert, Button, message } from "antd";
@@ -13,6 +34,7 @@ export default function FlockListPage() {
   const [error, setError] = useState(null);
   const [openImport, setOpenImport] = useState(false);
 
+  /* ================= FETCH DATA ================= */
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -21,7 +43,7 @@ export default function FlockListPage() {
       setFlocks(res.data?.data || res.data || []);
     } catch (err) {
       console.error("Lỗi tải danh sách đàn gà:", err);
-      setError(err.response?.data?.message || "Không thể tải danh sách đàn gà");
+      setError("Không thể tải danh sách đàn gà");
       setFlocks([]);
     } finally {
       setLoading(false);
@@ -32,71 +54,189 @@ export default function FlockListPage() {
     fetchData();
   }, []);
 
-  const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    try {
-      const d = new Date(dateString);
-      return `${String(d.getDate()).padStart(2, "0")}/${String(
-        d.getMonth() + 1
-      ).padStart(2, "0")}/${d.getFullYear()}`;
-    } catch {
-      return "-";
-    }
-  };
+  /* ================= HELPER ================= */
+  const formatDate = (date) =>
+    date ? new Date(date).toLocaleDateString("vi-VN") : "-";
 
-  const StatusBadge = ({ status }) => {
-    let color = "gray";
-    let text = status || "-";
+  /* ================= THỐNG KÊ ================= */
+  const totalFlocks = flocks.length;
 
-    if (status === "ACTIVE" || status === "Đang nuôi" || status === "RAISING") {
-      color = "green";
-      text = "Đang nuôi";
-    } else if (status === "SOLD" || status === "Đã bán") {
-      color = "blue";
-      text = "Đã bán";
-    } else if (status === "CLOSED" || status === "Đã đóng") {
-      color = "gray";
-      text = "Đã đóng";
-    }
+  const totalInitialQuantity = flocks.reduce(
+    (sum, f) => sum + (f.initialQuantity || 0),
+    0
+  );
 
-    return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded bg-${color}-100 text-${color}-800`}
-      >
-        {text}
-      </span>
-    );
-  };
+  const totalCurrentQuantity = flocks.reduce(
+    (sum, f) => sum + (f.currentQuantity || 0),
+    0
+  );
 
-  const handleImportSuccess = async () => {
-    await fetchData();
-    message.success("Nhập đàn thành công");
-  };
+  const raisingCount = flocks.filter(
+    (f) =>
+      f.status === "RAISING" ||
+      f.status === "ACTIVE" ||
+      f.status === "Đang nuôi"
+  ).length;
 
+  /* ================= TABLE COLUMNS ================= */
+  const columns = [
+    {
+      title: "Đàn gà",
+      dataIndex: "name",
+      render: (_, r) => (
+        <>
+          <div style={{ fontWeight: 600 }}>{r.name}</div>
+          {r.code && <div style={{ color: "#888" }}>{r.code}</div>}
+        </>
+      ),
+    },
+    {
+      title: "Ngày nhập",
+      render: (_, r) => formatDate(r.importDate || r.createdAt),
+    },
+    {
+      title: "Giống",
+      render: (_, r) => r.breed?.name || r.breed || "-",
+    },
+    {
+      title: "SL ban đầu",
+      align: "center",
+      render: (_, r) => r.initialQuantity ?? 0,
+    },
+    {
+      title: "SL hiện tại",
+      align: "center",
+      render: (_, r) => (
+        <span style={{ fontWeight: 600, color: "#237804" }}>
+          {r.currentQuantity ?? 0}
+        </span>
+      ),
+    },
+    {
+      title: "Chuồng",
+      align: "center",
+      render: (_, r) => r.coop?.name || "-",
+    },
+    {
+      title: "Trạng thái",
+      align: "center",
+      render: (_, r) => {
+        if (r.status === "RAISING" || r.status === "ACTIVE")
+          return <Tag color="green">🟢 Đang nuôi</Tag>;
+        if (r.status === "SOLD") return <Tag color="blue">🔵 Đã bán</Tag>;
+        return <Tag>⚪ Khác</Tag>;
+      },
+    },
+    {
+      title: "Hành động",
+      align: "center",
+      render: (_, r) => (
+        <Button type="link" onClick={() => navigate(`/flocks/${r.id}`)}>
+          Chi tiết
+        </Button>
+      ),
+    },
+  ];
+
+  /* ================= RENDER ================= */
   return (
-    <div className="px-8 mt-6">
+    <div style={{ padding: 24 }}>
       {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Danh sách đàn gà</h1>
-          <p className="text-gray-600 mt-1">Quản lý tất cả các đàn gà trong hệ thống</p>
-        </div>
-        <div className="flex gap-3">
+      <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
+        <Col>
+          <h2 style={{ marginBottom: 0 }}>Danh sách đàn gà</h2>
+          <p style={{ color: "#888" }}>
+            Quản lý tất cả các đàn gà trong hệ thống
+          </p>
+        </Col>
+        <Col>
           <Button
             icon={<ReloadOutlined />}
             onClick={fetchData}
             loading={loading}
+            style={{ marginRight: 8 }}
           >
             Tải lại
           </Button>
-          <button
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
             onClick={() => setOpenImport(true)}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2"
+            style={{ boxShadow: "0 2px 6px rgba(24,144,255,0.35)" }}
           >
-            <PlusOutlined /> Thêm đàn mới
-          </button>
-        </div>
-      </div>
+            Thêm đàn
+          </Button>
+        </Col>
+      </Row>
+
+      {/* THỐNG KÊ */}
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card
+            bordered={false}
+            style={{ background: "#f0f5ff", borderRadius: 12 }}
+          >
+            <Statistic
+              title="Tổng đàn"
+              value={totalFlocks}
+              prefix={<TeamOutlined style={{ color: "#2f54eb" }} />}
+              valueStyle={{ color: "#1d39c4", fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+
+        <Col span={6}>
+          <Card
+            bordered={false}
+            style={{ background: "#fff7e6", borderRadius: 12 }}
+          >
+            <Statistic
+              title="SL ban đầu"
+              value={totalInitialQuantity}
+              prefix={<InboxOutlined style={{ color: "#fa8c16" }} />}
+              valueStyle={{ color: "#d46b08", fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+
+        <Col span={6}>
+          <Card
+            bordered={false}
+            style={{ background: "#f6ffed", borderRadius: 12 }}
+          >
+            <Statistic
+              title="SL hiện tại"
+              value={totalCurrentQuantity}
+              prefix={<RiseOutlined style={{ color: "#52c41a" }} />}
+              valueStyle={{ color: "#237804", fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+
+        <Col span={6}>
+          <Card
+            bordered={false}
+            style={{ background: "#e6fffb", borderRadius: 12 }}
+          >
+            <Statistic
+              title="Đang nuôi"
+              value={raisingCount}
+              prefix={<CheckCircleOutlined style={{ color: "#13c2c2" }} />}
+              valueStyle={{ color: "#006d75", fontWeight: 600 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* ERROR */}
+      {error && (
+        <Alert
+          type="error"
+          message={error}
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+      )}
 
       {error && (
         <div className="mb-4">
@@ -112,109 +252,28 @@ export default function FlockListPage() {
       )}
 
       {/* TABLE */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <Card style={{ borderRadius: 12 }}>
         {loading ? (
-          <div className="p-10 text-center">
-            <Spin tip="Đang tải dữ liệu..." />
-          </div>
-        ) : flocks.length === 0 ? (
-          <div className="p-10 text-center">
-            <div className="text-gray-500 text-lg mb-4">Chưa có dữ liệu đàn gà</div>
-            <button
-              onClick={() => setOpenImport(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              + Thêm đàn đầu tiên
-            </button>
-          </div>
+          <Spin />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b">Mã/Tên đàn</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b">Ngày nhập</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b">Giống</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b text-center">
-                    SL ban đầu
-                  </th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b text-center">
-                    SL hiện tại
-                  </th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b text-center">
-                    Chuồng
-                  </th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b text-center">
-                    Trạng thái
-                  </th>
-                  <th className="px-6 py-4 text-sm font-semibold text-gray-700 border-b text-center">
-                    Hành động
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {flocks.map((flock, index) => (
-                  <tr
-                    key={flock._id || flock.id || index}
-                    className={index % 2 === 0 ? "bg-gray-50 hover:bg-gray-100" : "bg-white hover:bg-gray-100"}
-                  >
-                    <td className="px-6 py-4 border-b">
-                      <div className="font-medium text-gray-900">{flock.name || "-"}</div>
-                      {flock.code && (
-                        <div className="text-sm text-gray-500">{flock.code}</div>
-                      )}
-                    </td>
-
-                    <td className="px-6 py-4 border-b">
-                      {formatDate(flock.importDate || flock.createdAt)}
-                    </td>
-
-                    <td className="px-6 py-4 border-b">
-                      {flock.breed?.name || flock.breed || flock.speciesId || "-"}
-                    </td>
-
-                    <td className="px-6 py-4 border-b text-center">
-                      {flock.initialQuantity ?? flock.initialCount ?? 0}
-                    </td>
-
-                    <td className="px-6 py-4 border-b text-center">
-                      <span className="font-semibold">
-                        {flock.currentQuantity ?? flock.currentCount ?? 0}
-                      </span>
-                    </td>
-
-                    <td className="px-6 py-4 border-b text-center">
-                      {flock.coop?.name || flock.coop || "-"}
-                    </td>
-
-                    <td className="px-6 py-4 border-b text-center">
-                      <StatusBadge status={flock.status} />
-                    </td>
-
-                    <td className="px-6 py-4 border-b text-center">
-                      <button
-                        className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm font-medium"
-                        onClick={() =>
-                          navigate(`/flocks/${flock._id || flock.id}`)
-                        }
-                      >
-                        Xem chi tiết
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            rowKey={(r) => r.id}
+            columns={columns}
+            dataSource={flocks}
+            pagination={{ pageSize: 8 }}
+            bordered
+          />
         )}
-      </div>
+      </Card>
 
-      {/* Import Modal */}
+      {/* MODAL */}
       <ImportFlockModal
         open={openImport}
         onClose={() => setOpenImport(false)}
-        onSuccess={handleImportSuccess}
+        onSuccess={async () => {
+          await fetchData();
+          message.success("Nhập đàn thành công");
+        }}
       />
     </div>
   );
