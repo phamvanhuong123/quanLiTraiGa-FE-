@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   Table,
   Button,
@@ -10,23 +10,25 @@ import {
   InputNumber,
   Tag,
   message,
-} from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+  Select,
+  Popconfirm,
+} from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import coopApi from "~/api/coopApi";
 
 export default function CoopsTab() {
-  // ================= MOCK DATA =================
   const [data, setData] = useState([
     {
       key: 1,
-      name: 'Chuồng A1',
+      name: "Chuồng A1",
       capacity: 500,
-      status: 'EMPTY',
+      status: "EMPTY",
     },
     {
       key: 2,
-      name: 'Chuồng B1',
+      name: "Chuồng B1",
       capacity: 800,
-      status: 'OCCUPIED',
+      status: "OCCUPIED",
     },
   ]);
 
@@ -34,7 +36,7 @@ export default function CoopsTab() {
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
-
+  const { Option } = Select;
   // ================= HANDLERS =================
   const openAddModal = () => {
     setEditingItem(null);
@@ -47,104 +49,137 @@ export default function CoopsTab() {
     form.setFieldsValue({
       name: record.name,
       capacity: record.capacity,
+      status: record.status,
     });
     setOpen(true);
   };
 
-  const handleSubmit = () => {
-    form.validateFields().then((values) => {
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+
       if (editingItem) {
+        const id = editingItem?.id;
+
+        if (!id) {
+          message.error("Không tìm thấy ID chuồng trại để cập nhật");
+          return;
+        }
+
+        // 2. Gọi API update
+        const res = await coopApi.update(id, values);
+        console.log(res.data);
+        // 3. Update state
         setData((prev) =>
-          prev.map((item) =>
-            item.key === editingItem.key
-              ? { ...item, ...values }
-              : item
-          )
+          prev.map((item) => (item.id === id ? { ...item, ...res.data } : item))
         );
-        message.success('Cập nhật chuồng trại thành công');
+
+        message.success("Cập nhật chuồng trại thành công");
       } else {
+        // 4. Gọi API create
+        const response = await coopApi.create(values);
+
         setData((prev) => [
-          ...prev,
           {
-            key: Date.now(),
-            ...values,
-            status: 'EMPTY', // mặc định backend sẽ quản lý
+            key: response.data.id,
+            ...response.data,
           },
+          ...prev,
         ]);
-        message.success('Thêm chuồng trại thành công');
+
+        message.success("Thêm chuồng trại thành công");
       }
+
       setOpen(false);
-    });
+      form.resetFields();
+    } catch (error) {
+      console.error(error);
+
+      if (error?.errorFields) {
+        message.warning("Vui lòng nhập đầy đủ thông tin");
+      } else {
+        message.error(
+          error?.response?.data?.message || "Đã có lỗi xảy ra, vui lòng thử lại"
+        );
+      }
+    }
   };
 
-  const handleDelete = (key) => {
-    setData((prev) => prev.filter((item) => item.key !== key));
-    message.success('Xóa chuồng trại thành công');
+  const handleDelete = async (id) => {
+    try {
+      await coopApi.delete(id);
+      setData((prev) => prev.filter((item) => item.id !== id));
+      message.success("Xóa chuồng trại thành công");
+    } catch (e) {
+      message.error(
+        `Thất bại vui lòng thử lại : ${e?.response?.data?.message}`
+      );
+    }
   };
-
-  // ================= TABLE COLUMNS =================
   const columns = [
     {
-      title: 'Tên chuồng',
-      dataIndex: 'name',
-      key: 'name',
+      title: "Tên chuồng",
+      dataIndex: "name",
+      key: "name",
     },
     {
-      title: 'Sức chứa',
-      dataIndex: 'capacity',
-      key: 'capacity',
+      title: "Sức chứa",
+      dataIndex: "capacity",
+      key: "capacity",
     },
     {
-      title: 'Trạng thái',
-      dataIndex: 'status',
-      key: 'status',
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
       render: (status) => (
-        <Tag color={status === 'EMPTY' ? 'green' : 'red'}>
-          {status}
-        </Tag>
+        <Tag color={status === "EMPTY" ? "green" : "red"}>{status}</Tag>
       ),
     },
     {
-      title: 'Hành động',
-      key: 'action',
+      title: "Hành động",
+      key: "action",
       render: (_, record) => (
         <Space>
           <Button type="link" onClick={() => openEditModal(record)}>
             Sửa
           </Button>
-          <Button
-            type="link"
-            danger
-            onClick={() => handleDelete(record.key)}
+
+          <Popconfirm
+            title="Xác nhận xoá"
+            description="Bạn có chắc chắn muốn xoá mục này không?"
+            okText="Xóa"
+            cancelText="Không"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => handleDelete(record.id)}
           >
-            Xóa
-          </Button>
+            <Button type="link" danger>
+              Xóa
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
   ];
 
-  // ================= RENDER =================
+  useEffect(() => {
+    const fetchApiCoop = async () => {
+      const res = await coopApi.list();
+      setData(res.data);
+    };
+    fetchApiCoop();
+  }, []);
   return (
     <Card>
       <Space style={{ marginBottom: 16 }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={openAddModal}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
           Thêm chuồng trại
         </Button>
       </Space>
 
-      <Table
-        columns={columns}
-        dataSource={data}
-        pagination={{ pageSize: 5 }}
-      />
+      <Table columns={columns} dataSource={data} pagination={{ pageSize: 5 }} />
 
       <Modal
-        title={editingItem ? 'Sửa chuồng trại' : 'Thêm chuồng trại'}
+        title={editingItem ? "Sửa chuồng trại" : "Thêm chuồng trại"}
         open={open}
         onOk={handleSubmit}
         onCancel={() => setOpen(false)}
@@ -155,7 +190,7 @@ export default function CoopsTab() {
           <Form.Item
             name="name"
             label="Tên chuồng"
-            rules={[{ required: true, message: 'Vui lòng nhập tên chuồng' }]}
+            rules={[{ required: true, message: "Vui lòng nhập tên chuồng" }]}
           >
             <Input />
           </Form.Item>
@@ -163,9 +198,22 @@ export default function CoopsTab() {
           <Form.Item
             name="capacity"
             label="Sức chứa"
-            rules={[{ required: true, message: 'Vui lòng nhập sức chứa' }]}
+            rules={[{ required: true, message: "Vui lòng nhập sức chứa" }]}
           >
-            <InputNumber min={1} style={{ width: '100%' }} />
+            <InputNumber min={1} style={{ width: "100%" }} />
+          </Form.Item>
+
+          {/* Dropdown trạng thái */}
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true, message: "Vui lòng chọn trạng thái" }]}
+          >
+            <Select placeholder="Chọn trạng thái">
+              <Option value="EMPTY">Trống</Option>
+              <Option value="ACTIVE">Đang sử dụng</Option>
+              <Option value="CLEANING">Bảo trì</Option>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>
