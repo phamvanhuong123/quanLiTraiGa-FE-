@@ -45,6 +45,12 @@ const flockApi = {
 
   // Lấy danh sách nhà cung cấp
   getSuppliers: () => axiosClient.get("/suppliers"),
+
+  // Cập nhật đàn
+  updateFlock: (id, data) => axiosClient.put(`/flocks/${id}`, data),
+
+  // Xoá đàn
+  deleteFlock: (id) => axiosClient.delete(`/flocks/${id}`),
 };
 
 export default flockApi;
