@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Button,
   Card,
@@ -8,7 +8,8 @@ import {
   Row,
   Col,
   Breadcrumb,
-  Badge
+  Badge,
+  message
 } from "antd";
 import {
   PlusOutlined,
@@ -24,11 +25,16 @@ import InventoryFilters from "./components/InventoryFilters";
 import ImportMaterialModal from "./components/ImportMaterialModal";
 import InventoryKPI from "./components/InventoryKPI";
 import { mockInventory } from "./mock/inventory.mock";
+import inventoryApi from "~/api/inventoryApi";
+import supplierApi from "~/api/supplierApi";
+import materialApi from "~/api/materialApi";
 
 const { Title, Text } = Typography;
 
 export default function InventoryPage() {
-  const [data, setData] = useState(mockInventory);
+  const [data, setData] = useState([]);
+  const [dataSupplier,setDataSupplier] = useState([])
+  const [dataMaterial,setDataMaterial] = useState([])
   const [open, setOpen] = useState(false);
   const [onlyExpiring, setOnlyExpiring] = useState(false);
   const [materialFilter, setMaterialFilter] = useState("all");
@@ -36,9 +42,9 @@ export default function InventoryPage() {
   
   // State cho chức năng sửa
   const [editingBatch, setEditingBatch] = useState(null);
-  const [modalMode, setModalMode] = useState("create"); // "create" hoặc "edit"
+  const [modalMode, setModalMode] = useState("create"); 
 
-  /* ===== KPI TÍNH TOÁN ===== */
+
   const kpi = useMemo(() => {
     const today = dayjs();
 
@@ -81,7 +87,7 @@ export default function InventoryPage() {
 
     if (materialFilter !== "all") {
       result = result.filter(
-        (i) => i.material.name === materialFilter
+        (i) => i.materialId === materialFilter
       );
     }
 
@@ -95,9 +101,8 @@ export default function InventoryPage() {
       const searchLower = searchText.toLowerCase();
       result = result.filter(i =>
         i.batchCode.toLowerCase().includes(searchLower) ||
-        i.material.name.toLowerCase().includes(searchLower) ||
-        i.supplier.name.toLowerCase().includes(searchLower) ||
-        i.material.code?.toLowerCase().includes(searchLower)
+        i.materialId.toLowerCase().includes(searchLower) ||
+        i.supplierId.toLowerCase().includes(searchLower)
       );
     }
 
@@ -105,6 +110,8 @@ export default function InventoryPage() {
   }, [data, materialFilter, onlyExpiring, searchText]);
 
   /* ===== XỬ LÝ SỰ KIỆN ===== */
+
+
   const handleAddNew = () => {
     setModalMode("create");
     setEditingBatch(null);
@@ -121,18 +128,49 @@ export default function InventoryPage() {
     setData(prev => prev.filter(item => item.id !== batchId));
   };
 
-  const handleModalSuccess = (newBatch, mode) => {
-    if (mode === "edit") {
-      // Cập nhật lô hàng đã sửa
-      setData(prev => prev.map(item => 
-        item.id === newBatch.id ? newBatch : item
-      ));
-    } else {
-      // Thêm lô hàng mới
-      setData(prev => [newBatch, ...prev]);
-    }
+  const handleModalSuccess = async () => {
+    // if (mode === "edit") {
+    //   // Cập nhật lô hàng đã sửa
+    //   setData(prev => prev.map(item => 
+    //     item.id === newBatch.id ? newBatch : item
+    //   ));
+    // } else {
+     
+    //   setData(prev => [newBatch, ...prev]);
+    // }
+    //gọi lại api lấy danh sách
+   try{
+     const res = await inventoryApi.list()
+    setData(res.data)
+   }
+   catch{
+    message.error("Có lỗi xảy ra")
+   }
   };
+useEffect(() => {
+  const fetchApi = async () => {
+    try {
+      const [
+        resInventories,
+        resSuppliers,
+        resMaterials
+      ] = await Promise.all([
+        inventoryApi.list(),
+        supplierApi.list(),
+        materialApi.list()
+      ])
 
+      setData(resInventories.data)
+      setDataSupplier(resSuppliers.data)
+      setDataMaterial(resMaterials.data)
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  fetchApi()
+}, [])
+  
   return (
     <div style={{
       minHeight: '100vh',
@@ -145,7 +183,7 @@ export default function InventoryPage() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
         border: '1px solid #e7e7e7ff'
       }}>
-        {/* ===== HEADER ===== */}
+    
         <div style={{ marginBottom: '32px' }}>
           <Breadcrumb
             items={[
@@ -230,8 +268,9 @@ export default function InventoryPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
               <InventoryFilters
                 data={data}
-                onChange={setMaterialFilter}
-                onSearch={setSearchText}
+                setMaterialFilter={setMaterialFilter}
+                setSearchText={setSearchText}
+                material={dataMaterial}
               />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -301,6 +340,8 @@ export default function InventoryPage() {
           onSuccess={handleModalSuccess}
           editingBatch={editingBatch}
           mode={modalMode}
+          materials={dataMaterial}
+          suppliers={dataSupplier}
         />
       </Card>
     </div>

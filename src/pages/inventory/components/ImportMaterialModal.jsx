@@ -1,9 +1,8 @@
 import { Modal, Form, InputNumber, Select, DatePicker, message, Row, Col, Card } from "antd";
 import { useState, useEffect } from "react";
 import dayjs from "dayjs";
-import { mockMaterials } from "../mock/material.mock";
-import { mockSuppliers } from "../mock/supplier.mock";
 import { DollarOutlined, CalendarOutlined, NumberOutlined, InboxOutlined } from "@ant-design/icons";
+import inventoryApi from "~/api/inventoryApi";
 
 const { Option } = Select;
 
@@ -12,7 +11,9 @@ export default function ImportMaterialModal({
   onClose, 
   onSuccess,
   editingBatch,
-  mode = "create"
+  mode = "create",
+  materials,
+  suppliers
 }) {
   const [form] = Form.useForm();
   const [total, setTotal] = useState(0);
@@ -61,9 +62,10 @@ export default function ImportMaterialModal({
     if (open) {
       if (mode === "edit" && editingBatch) {
         form.setFieldsValue({
-          materialId: editingBatch.material.id,
-          supplierId: editingBatch.supplier.id,
-          quantity: editingBatch.quantityImported,
+          materialId: editingBatch.materialId,
+          quantity : editingBatch.quantityImported,
+          supplierId: editingBatch.supplierId,
+          quantityImported: editingBatch.quantityImported,
           pricePerUnit: editingBatch.pricePerUnit,
           expiryDate: dayjs(editingBatch.expiryDate)
         });
@@ -83,26 +85,24 @@ export default function ImportMaterialModal({
     try {
       setLoading(true);
       const values = await form.validateFields();
-
       const newBatch = {
-        id: mode === "edit" ? editingBatch.id : Date.now(),
-        batchCode: mode === "edit" ? editingBatch.batchCode : `MAT-${Date.now()}`,
-        material: mockMaterials.find(m => m.id === values.materialId),
-        supplier: mockSuppliers.find(s => s.id === values.supplierId),
-        quantityImported: values.quantity,
-        quantityRemaining: mode === "edit" ? editingBatch.quantityRemaining : values.quantity,
+        materialId: values.materialId,
+        supplierId: values.supplierId,
+        quantity  : values.quantity,
+        quantityImported: values.quantity ,
         pricePerUnit: values.pricePerUnit,
-        importDate: mode === "edit" ? editingBatch.importDate : dayjs(),
         expiryDate: values.expiryDate,
       };
-
+      console.log(newBatch)
+      
+      //gọi api 
+      mode === "edit" ? await inventoryApi.update(editingBatch.id,newBatch) : await inventoryApi.import(newBatch)
+      onSuccess();
       message.success(
         mode === "edit" 
           ? "Cập nhật lô hàng thành công!" 
           : "Nhập kho thành công!"
       );
-      
-      onSuccess(newBatch, mode);
       form.resetFields();
       setTotal(0);
       onClose();
@@ -190,7 +190,7 @@ export default function ImportMaterialModal({
                 style={{ borderRadius: '6px' }}
                 disabled={mode === "edit"}
               >
-                {mockMaterials.map(m => (
+                {materials.map(m => (
                   <Option key={m.id} value={m.id}>{m.name}</Option>
                 ))}
               </Select>
@@ -209,7 +209,7 @@ export default function ImportMaterialModal({
                 style={{ borderRadius: '6px' }}
                 disabled={mode === "edit"}
               >
-                {mockSuppliers.map(s => (
+                {suppliers.map(s => (
                   <Option key={s.id} value={s.id}>{s.name}</Option>
                 ))}
               </Select>
@@ -293,7 +293,7 @@ export default function ImportMaterialModal({
                   validator: (_, value) => {
                     if (!value) return Promise.reject();
                     if (value.isBefore(dayjs(), 'day')) {
-                      return Promise.reject(new Error('Hạn sử dụng không được là ngày trong quá khứ'));
+                      return Promise.reject(new Error('Hạn sử dụng không được trước ngày hiện tại'));
                     }
                     return Promise.resolve();
                   }

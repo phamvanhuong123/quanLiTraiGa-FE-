@@ -3,36 +3,20 @@ import { SearchOutlined, FilterOutlined } from "@ant-design/icons";
 
 const { Option } = Select;
 
-export default function InventoryFilters({ data, onChange, onSearch }) {
-  const supplies = [
-    ...new Set(data.map(i => i.supply?.name || "").filter(name => name)),
-  ];
+export default function InventoryFilters({ data, setMaterialFilter, setSearchText, material }) {
 
+  const handleChange = (e) => {
+    setMaterialFilter(e)
+  }
+  const handleSearch = (e) => {
+    console.log(e.target?.value)
+    const value = e.target?.value
+    setSearchText(value)
+  }
+  console.log(material)
   return (
     <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-      <div style={{ position: 'relative' }}>
-        <SearchOutlined 
-          style={{
-            position: 'absolute',
-            left: '12px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: '#999',
-            zIndex: 1
-          }}
-        />
-        <Input
-          placeholder="Tìm kiếm mã lô, vật tư..."
-          style={{
-            width: '280px',
-            borderRadius: '20px',
-            paddingLeft: '36px',
-            height: '40px'
-          }}
-          onChange={(e) => onSearch && onSearch(e.target.value)}
-          allowClear
-        />
-      </div>
+    
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <FilterOutlined style={{ color: '#666' }} />
@@ -40,14 +24,14 @@ export default function InventoryFilters({ data, onChange, onSearch }) {
         <Select
           style={{ width: '180px', borderRadius: '6px' }}
           defaultValue="all"
-          onChange={onChange}
+          onChange={handleChange}
           size="middle"
           placeholder="Chọn vật tư"
         >
           <Option value="all">Tất cả vật tư</Option>
-          {supplies.map(name => (
-            <Option key={name} value={name}>
-              {name}
+          {material.map(m => (
+            <Option key={m.id} value={m.id}>
+              {m?.name}
             </Option>
           ))}
         </Select>
