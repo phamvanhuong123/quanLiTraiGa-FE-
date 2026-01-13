@@ -1,154 +1,154 @@
-import React, { useState, useMemo } from "react";
-import { Space } from "antd";
+import React, { useState, useEffect, useCallback } from "react";
+import { Space, message, Modal } from "antd";
+import axios from "axios";
 
 import FinanceFilterBar from "./components/FinanceFilterBar";
 import TransactionTable from "./components/TransactionTable";
 import FinanceSummaryFooter from "./components/FinanceSummaryFooter";
 import TransactionModal from "./components/TransactionModal";
 
-/* ================= MOCK DATA ================= */
-const mockTransactions = [
-  {
-    id: 1,
-    transactionDate: "2024-06-01",
-    type: "INCOME",
-    category: "Bán gà",
-    amount: 12000000,
-    flockName: "Đàn gà A",
-    createdBy: "Nguyễn Văn A",
-    description: "Bán gà thịt",
-  },
-  {
-    id: 2,
-    transactionDate: "2024-06-03",
-    type: "EXPENSE",
-    category: "Mua cám",
-    amount: 4500000,
-    flockName: "Đàn gà A",
-    createdBy: "Nguyễn Văn A",
-    description: "Mua cám CP",
-  },
-  {
-    id: 3,
-    transactionDate: "2024-06-05",
-    type: "EXPENSE",
-    category: "Tiền điện",
-    amount: 1200000,
-    flockName: null,
-    createdBy: "Admin",
-    description: "Tiền điện tháng 6",
-  },
-];
-
 export default function FinancePage() {
   /* ================= STATE ================= */
-
-  // Danh sách giao dịch
-  const [data, setData] = useState(mockTransactions);
-
-  // Modal thêm giao dịch
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState({ totalIncome: 0, totalExpense: 0 });
   const [openModal, setOpenModal] = useState(false);
+  
+  // Thêm state để quản lý việc sửa
+  const [editingTransaction, setEditingTransaction] = useState(null);
 
-  // Bộ lọc
   const [filters, setFilters] = useState({
     dateRange: null,
-    type: "ALL",
+    type: "ALL",  
     category: null,
   });
 
-  /* ================= LOGIC NGHIỆP VỤ ================= */
+  /* ================= CALL API ================= */
 
-  /**
-   * Lọc giao dịch theo:
-   * - loại (Thu / Chi)
-   * - danh mục
-   * - khoảng thời gian
-   */
-  const filteredData = useMemo(() => {
-    return data.filter((item) => {
-      // Lọc loại
-      if (filters.type !== "ALL" && item.type !== filters.type) {
-        return false;
-      }
-
-      // Lọc danh mục
-      if (filters.category && item.category !== filters.category) {
-        return false;
-      }
-
-      // Lọc ngày
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token"); 
+      const params = {};
+      if (filters.type !== "ALL") params.type = filters.type;
+      if (filters.category) params.category = filters.category;
       if (filters.dateRange) {
-        const [start, end] = filters.dateRange;
-        const date = new Date(item.transactionDate);
-        if (date < start || date > end) return false;
+        params.startDate = filters.dateRange[0].format("YYYY-MM-DD");
+        params.endDate = filters.dateRange[1].format("YYYY-MM-DD");
       }
 
-      return true;
-    });
-  }, [data, filters]);
+      const response = await axios.get("http://localhost:8080/api/transactions", {
+        params,
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const result = response.data.data;
+      setData(result.transactions);
+      setSummary({
+        totalIncome: result.totalIncome,
+        totalExpense: result.totalExpense
+      });
+    } catch (error) {
+      message.error("Không thể lấy dữ liệu từ server.");
+    } finally {
+      setLoading(false);
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   /**
-   * Tổng thu dựa trên dữ liệu đã lọc
+   * Xử lý Thêm hoặc Cập nhật
    */
-  const totalIncome = useMemo(() => {
-    return filteredData
-      .filter((i) => i.type === "INCOME")
-      .reduce((sum, i) => sum + i.amount, 0);
-  }, [filteredData]);
+  const handleSubmit = async (values) => {
+    try {
+      const token = localStorage.getItem("token");
+      const payload = {
+        transactionDate: values.transactionDate.format("YYYY-MM-DD"),
+        type: values.type,
+        category: values.category,
+        amount: values.amount,
+        description: values.description,
+        flockId: values.flockId,
+      };
 
-  /**
-   * Tổng chi dựa trên dữ liệu đã lọc
-   */
-  const totalExpense = useMemo(() => {
-    return filteredData
-      .filter((i) => i.type === "EXPENSE")
-      .reduce((sum, i) => sum + i.amount, 0);
-  }, [filteredData]);
+      if (editingTransaction) {
+        // Cập nhật
+        await axios.put(`http://localhost:8080/api/transactions/${editingTransaction.id}`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        message.success("Cập nhật thành công");
+      } else {
+        // Thêm mới
+        await axios.post("http://localhost:8080/api/transactions", payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        message.success("Thêm thành công");
+      }
 
-  /**
-   * Thêm giao dịch thu/chi ngoài (mock)
-   */
-  const handleAddTransaction = (values) => {
-    const newTransaction = {
-      id: Date.now(),
-      transactionDate: values.transactionDate.format("YYYY-MM-DD"),
-      type: values.type,
-      category: values.category,
-      amount: values.amount,
-      flockName: values.flockId || null,
-      createdBy: "Admin",
-      description: values.description,
-    };
-
-    setData((prev) => [newTransaction, ...prev]);
-    setOpenModal(false);
+      setOpenModal(false);
+      setEditingTransaction(null);
+      fetchTransactions(); 
+    } catch (error) {
+      message.error("Lỗi khi lưu giao dịch");
+    }
   };
 
-  /* ================= RENDER ================= */
+  const handleDelete = async (id) => {
+  try {
+    const token = localStorage.getItem("token");
+    await axios.delete(`http://localhost:8080/api/transactions/${id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    message.success("Xóa thành công");
+    fetchTransactions();
+  } catch (error) {
+    // Lấy message từ Backend trả về
+    const errorMsg = error.response?.data?.message || "Không thể xóa giao dịch";
+    message.error(errorMsg); 
+  }
+};
+
+  const handleEdit = (record) => {
+    setEditingTransaction(record);
+    setOpenModal(true);
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingTransaction(null);
+    setOpenModal(true);
+  };
 
   return (
     <Space direction="vertical" size="large" style={{ width: "100%" }}>
-      {/* Bộ lọc */}
       <FinanceFilterBar
         filters={filters}
         onChange={setFilters}
-        onAdd={() => setOpenModal(true)}
+        onAdd={handleOpenAddModal}
       />
 
-      {/* Bảng giao dịch */}
-      <TransactionTable data={filteredData} />
+      <TransactionTable 
+        data={data} 
+        loading={loading} 
+        onEdit={handleEdit} 
+        onDelete={handleDelete} 
+      />
 
-      {/* Tổng kết tài chính */}
       <FinanceSummaryFooter
-        totalIncome={totalIncome}
-        totalExpense={totalExpense}
+        totalIncome={summary.totalIncome}
+        totalExpense={summary.totalExpense}
       />
 
-      {/* Modal thêm giao dịch */}
       <TransactionModal
         open={openModal}
-        onClose={() => setOpenModal(false)}
-        onSubmit={handleAddTransaction}
+        onClose={() => {
+          setOpenModal(false);
+          setEditingTransaction(null);
+        }}
+        onSubmit={handleSubmit}
+        initialValues={editingTransaction}
       />
     </Space>
   );
