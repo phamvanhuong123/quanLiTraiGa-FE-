@@ -12,7 +12,7 @@ export default function TransactionTable({ data, loading, onEdit, onDelete }) {
       title: "Mã GD",
       dataIndex: "id",
       width: 80,
-      render: (text, record, index) => index + 1, 
+      render: (text, record) => `GD-${record.id}`, 
     },
     {
       title: "Ngày",
