@@ -269,7 +269,6 @@ useEffect(() => {
               <InventoryFilters
                 data={data}
                 setMaterialFilter={setMaterialFilter}
-                setSearchText={setSearchText}
                 material={dataMaterial}
               />
 
