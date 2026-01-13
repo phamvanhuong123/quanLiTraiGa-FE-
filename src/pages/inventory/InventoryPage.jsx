@@ -124,8 +124,16 @@ export default function InventoryPage() {
     setOpen(true);
   };
 
-  const handleDelete = (batchId) => {
-    setData(prev => prev.filter(item => item.id !== batchId));
+  const handleDelete =async (id) => {
+    try{
+      await inventoryApi.delete(id)
+      setData(prev => prev.filter(item => item.id !== id));
+      message.success("Xoá thành công")
+    }
+    catch(e){
+      message.error(`Xoá thất bại : ${e}`)
+    }
+    
   };
 
   const handleModalSuccess = async () => {

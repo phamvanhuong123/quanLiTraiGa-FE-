@@ -21,7 +21,6 @@ export default function InventoryTable({ data, onEdit, onDelete }) {
       okType: 'danger',
       onOk: () => {
         onDelete && onDelete(record.id);
-        message.success(`Đã xóa lô hàng ${record.batchCode}`);
       }
     });
   };
