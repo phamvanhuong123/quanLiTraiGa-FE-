@@ -40,7 +40,7 @@ export default function InventoryPage() {
   const [materialFilter, setMaterialFilter] = useState("all");
   const [searchText, setSearchText] = useState("");
   
-  // State cho chức năng sửa
+ 
   const [editingBatch, setEditingBatch] = useState(null);
   const [modalMode, setModalMode] = useState("create"); 
 
@@ -81,7 +81,6 @@ export default function InventoryPage() {
     };
   }, [data]);
 
-  /* ===== LỌC DỮ LIỆU ===== */
   const filteredData = useMemo(() => {
     let result = [...data];
 

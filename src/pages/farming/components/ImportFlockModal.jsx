@@ -71,7 +71,7 @@ export default function ImportFlockModal({ open, onClose, onSuccess }) {
       setLoading(false);
     }
   };
-
+ 
   return (
     <Modal
       title="Nhập đàn gà mới"
@@ -121,7 +121,7 @@ export default function ImportFlockModal({ open, onClose, onSuccess }) {
               {coops.map((c) => (
                 <Option key={c.id || c.coopId} value={c.id || c.coopId}>
                   {c.name || c.coopName || c.code}
-                  {c.capacity ? ` (Sức chứa: ${c.capacity})` : ""}
+                  {c.capacity ? ` (Sức chứa: ${c.capacity}/${c.currentQuantity})` : ""}
                 </Option>
               ))}
             </Select>

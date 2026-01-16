@@ -144,7 +144,7 @@ export default function FlockListPage() {
             Chi tiết
           </Button>
 
-          {r.status === "RAISING" && (
+         
             <>
               <Button
                 type="link"
@@ -165,7 +165,7 @@ export default function FlockListPage() {
                 </Button>
               </Popconfirm>
             </>
-          )}
+        
         </>
       ),
     },

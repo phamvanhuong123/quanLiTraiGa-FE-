@@ -17,20 +17,7 @@ import { PlusOutlined } from "@ant-design/icons";
 import coopApi from "~/api/coopApi";
 
 export default function CoopsTab() {
-  const [data, setData] = useState([
-    {
-      key: 1,
-      name: "Chuồng A1",
-      capacity: 500,
-      status: "EMPTY",
-    },
-    {
-      key: 2,
-      name: "Chuồng B1",
-      capacity: 800,
-      status: "OCCUPIED",
-    },
-  ]);
+  const [data, setData] = useState([]);
 
   // ================= STATE =================
   const [open, setOpen] = useState(false);
@@ -128,6 +115,11 @@ export default function CoopsTab() {
       key: "capacity",
     },
     {
+      title: "Số lượng hiện tại",
+      dataIndex: "currentQuantity",
+      key: "currentQuantity",
+    },
+    {
       title: "Trạng thái",
       dataIndex: "status",
       key: "status",
@@ -160,7 +152,7 @@ export default function CoopsTab() {
       ),
     },
   ];
-
+  console.log(data)
   useEffect(() => {
     const fetchApiCoop = async () => {
       const res = await coopApi.list();
