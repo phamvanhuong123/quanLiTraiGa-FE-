@@ -97,7 +97,7 @@ const DashboardPage = () => {
   const profit = getProfit();
   const profitColor = profit >= 0 ? 'success.main' : 'error.main';
   const profitIcon = profit >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />;
-
+ 
   if (error) {
     return (
       <Container maxWidth="xl" sx={{ mt: 4 }}>
@@ -130,9 +130,7 @@ const DashboardPage = () => {
             <Typography variant="h4" fontWeight="bold">
               Tổng Quan Trang Trại
             </Typography>
-            <Tooltip title="Dữ liệu được cập nhật tự động mỗi 5 phút">
-              <InfoIcon color="action" fontSize="small" />
-            </Tooltip>
+        
           </Box>
           <Typography variant="body1" color="textSecondary">
             {new Date().toLocaleDateString('vi-VN', {

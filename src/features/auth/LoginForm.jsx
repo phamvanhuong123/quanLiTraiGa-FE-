@@ -4,6 +4,7 @@ import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import authApi from '../../api/authApi';
 import { useDispatch } from 'react-redux';
 import { setToken } from '~/redux/slices/authSlice';
+import { Link } from 'react-router-dom';
 
 export default function LoginForm({onSuccess}){
   const [form] = Form.useForm();
@@ -40,7 +41,7 @@ export default function LoginForm({onSuccess}){
       <Form.Item name="password" label="Password" rules={[{required:true, message:'Please input your password'}]}>
         <Input.Password prefix={<LockOutlined />} placeholder="Password"/>
       </Form.Item>
-
+    <Link to={"/register"}>Bạn chưa có tài khoản? Đăng kí ngay</Link>
       <Form.Item>
         <Button type="primary" htmlType="submit" block loading={loading}>Sign In</Button>
       </Form.Item>

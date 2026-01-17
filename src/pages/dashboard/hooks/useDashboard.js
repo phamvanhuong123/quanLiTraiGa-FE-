@@ -15,11 +15,11 @@ const useDashboard = () => {
       setLoading(true);
       setError(null);
 
-      // 1. Fetch dữ liệu từ các API thật
+  
       const [flocksRes, coopsRes, expiringRes, schedulesRes, transactionsRes] = await Promise.allSettled([
         axiosClient.get('/flocks'),
         axiosClient.get('/coops'),
-        axiosClient.get('/inventory/expiring'), // API lấy danh sách sắp hết hạn thật
+        axiosClient.get('/inventory/expiring'), 
         axiosClient.get('/schedules/upcoming?days=7'),
         axiosClient.get('/transactions')
       ]);
@@ -61,7 +61,6 @@ const useDashboard = () => {
         })));
       }
 
-      // 5. Xử lý "Vật tư sắp hết hạn" (DỮ LIỆU THẬT TỪ API /expiring)
       if (Array.isArray(expiringBatches)) {
         setExpiringInventory(expiringBatches.slice(0, 5).map(item => ({
           id: item.id,
@@ -82,7 +81,6 @@ const useDashboard = () => {
     }
   }, []);
 
-  // ================== LOGIC XỬ LÝ DỮ LIỆU TÀI CHÍNH (GIỮ NGUYÊN) ==================
   const processFinanceData = (transactions) => {
     const today = new Date();
     const monthlyData = {};

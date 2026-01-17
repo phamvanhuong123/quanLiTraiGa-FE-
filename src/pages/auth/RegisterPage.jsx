@@ -1,95 +1,187 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { Button, Input, Form, message } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
-import authApi from '../../api/authApi';
+import { Form, Input, Button, Card, Typography, message, Space } from 'antd';
+import { UserOutlined, LockOutlined, MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 
-export default function RegisterPage(){
+const { Title, Text } = Typography;
+
+const RegisterPage = () => {
+  // State quản lý bước: 1 = Đăng ký, 2 = Xác thực OTP
+  const [step, setStep] = useState(1);
+  
+  // State lưu email tạm thời để dùng cho bước verify
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  
+  // State loading cho nút bấm
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const [form] = Form.useForm();
 
-  const onFinish = async (values) => {
-    if (values.password !== values.passwordConfirm) {
-      message.error('Mật khẩu không khớp');
-      return;
-    }
-
+  // --- API 1: Xử lý Đăng Ký ---
+  const onFinishRegister = async (values) => {
     setLoading(true);
     try {
-      await authApi.register({
-        email: values.email,
-        password: values.password
-      });
       
-      message.success('Đăng ký thành công! Vui lòng đăng nhập.');
-      navigate('/login');
+      const response = await fetch('http://localhost:8080/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        message.success('Đăng ký thành công! Vui lòng kiểm tra email.');
+        setRegisteredEmail(values.email); 
+        setStep(2);
+      } else {
+        message.error(data.message || 'Đăng ký thất bại.');
+      }
     } catch (error) {
-      message.error(error.response?.data?.message || 'Đăng ký thất bại');
+      message.error('Không thể kết nối đến máy chủ.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  const onFinishVerify = async (values) => {
+    setLoading(true);
+    try {
+      // Dữ liệu gửi lên: code (từ form) và email (từ state đã lưu)
+      const payload = {
+        email: registeredEmail,
+        code: values.code
+      };
+
+      const response = await fetch('http://localhost:8080/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        message.success('Kích hoạt tài khoản thành công!');
+        // Chuyển hướng hoặc reset form tại đây
+        window.location.href = '/login';
+      } else {
+        message.error(data.message || 'Mã OTP không đúng.');
+      }
+    } catch (error) {
+      message.error('Lỗi khi xác thực OTP.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="text-center">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">🐔 Chicken Farm</h1>
-        <h2 className="text-gray-500 text-sm">Management System</h2>
-      </div>
-      
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onFinish}
-        validateTrigger="onSubmit"
-      >
-        <Form.Item
-          name="email"
-          rules={[
-            { required: true, message: 'Vui lòng nhập email' },
-            { type: 'email', message: 'Email không hợp lệ' }
-          ]}
-          className="mb-3"
-        >
-          <Input 
-            prefix={<MailOutlined />} 
-            placeholder="Email" 
-            type="email"
-          />
-        </Form.Item>
+    <div style={styles.container}>
+      <Card style={styles.card} bordered={false}>
+        <div style={{ textAlign: 'center', marginBottom: 30 }}>
+          <Title level={3} style={{ margin: 0 }}>
+            {step === 1 ? 'Tạo Tài Khoản' : 'Xác Thực OTP'}
+          </Title>
+          <Text type="secondary">
+            {step === 1 
+              ? 'Nhập thông tin của bạn để bắt đầu' 
+              : `Mã xác nhận đã gửi tới ${registeredEmail}`}
+          </Text>
+        </div>
 
-        <Form.Item
-          name="password"
-          rules={[{ required: true, message: 'Vui lòng nhập mật khẩu' }]}
-          className="mb-3"
-        >
-          <Input.Password 
-            prefix={<LockOutlined />} 
-            placeholder="Mật khẩu"
-          />
-        </Form.Item>
+        {/* --- STEP 1: FORM ĐĂNG KÝ --- */}
+        {step === 1 && (
+          <Form
+            name="register_form"
+            onFinish={onFinishRegister}
+            layout="vertical"
+            size="large"
+          >
+            <Form.Item
+              name="username"
+              rules={[{ required: true, message: 'Vui lòng nhập Username!' }]}
+            >
+              <Input prefix={<UserOutlined />} placeholder="Username" />
+            </Form.Item>
 
-        <Form.Item
-          name="passwordConfirm"
-          rules={[{ required: true, message: 'Vui lòng xác nhận mật khẩu' }]}
-          className="mb-4"
-        >
-          <Input.Password 
-            prefix={<LockOutlined />} 
-            placeholder="Xác nhận mật khẩu"
-          />
-        </Form.Item>
+            <Form.Item
+              name="email"
+              rules={[
+                { required: true, message: 'Vui lòng nhập Email!' },
+                { type: 'email', message: 'Email không hợp lệ!' }
+              ]}
+            >
+              <Input prefix={<MailOutlined />} placeholder="Email" />
+            </Form.Item>
 
-        <Button type="primary" block loading={loading} htmlType="submit" className="h-10">
-          Đăng ký
-        </Button>
-      </Form>
+            <Form.Item
+              name="password"
+              rules={[{ required: true, message: 'Vui lòng nhập Mật khẩu!' }]}
+            >
+              <Input.Password prefix={<LockOutlined />} placeholder="Password" />
+            </Form.Item>
 
-      <p className="text-xs text-gray-600 mt-3">
-        Đã có tài khoản? <Link to="/login" className="text-blue-600 hover:text-blue-800">Đăng nhập</Link>
-      </p>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" block loading={loading}>
+                Đăng Ký
+              </Button>
+            </Form.Item>
+          </Form>
+        )}
+
+        {/* --- STEP 2: FORM XÁC THỰC OTP --- */}
+        {step === 2 && (
+          <Form
+            name="otp_form"
+            onFinish={onFinishVerify}
+            layout="vertical"
+            size="large"
+          >
+            <Form.Item
+              name="code"
+              rules={[
+                { required: true, message: 'Vui lòng nhập mã OTP!' },
+                { len: 6, message: 'Mã OTP thường có 6 ký tự' }
+              ]}
+            >
+              <Input 
+                prefix={<SafetyCertificateOutlined />} 
+                placeholder="Nhập mã OTP" 
+                style={{ textAlign: 'center', letterSpacing: '4px', fontWeight: 'bold' }}
+              />
+            </Form.Item>
+
+            <Form.Item>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Button type="primary" htmlType="submit" block loading={loading}>
+                  Xác Nhận
+                </Button>
+                <Button type="link" block onClick={() => setStep(1)}>
+                  Quay lại đăng ký
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        )}
+      </Card>
     </div>
-  )
-}
+  );
+};
 
+// CSS in JS đơn giản
+const styles = {
+  container: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+   
+    padding: '20px'
+  },
+  card: {
+    width: '100%',
+    maxWidth: 400,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)', 
+    borderRadius: '8px'
+  }
+};
+
+export default RegisterPage;
