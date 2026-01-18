@@ -315,7 +315,7 @@ useEffect(() => {
           </div>
         </Card>
 
-        {/* ===== TABLE ===== */}
+     
         <div style={{ position: 'relative' }}>
           {filteredData.length > 0 ? (
             <InventoryTable 
