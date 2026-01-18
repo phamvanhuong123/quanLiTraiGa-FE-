@@ -13,18 +13,34 @@ import {
   Select,
   Popconfirm,
 } from "antd";
-import { PlusOutlined } from "@ant-design/icons";
+import { EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import coopApi from "~/api/coopApi";
+import FlockDetailModal from "./ModelDetail";
 
 export default function CoopsTab() {
   const [data, setData] = useState([]);
-
-  // ================= STATE =================
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedCoopId, setSelectedCoopId] = useState(null);
+  const [selectedCoopName, setSelectedCoopName] = useState("");
   const [open, setOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [form] = Form.useForm();
   const { Option } = Select;
-  // ================= HANDLERS =================
+
+  const textColorOfStatus = {
+    EMPTY: {
+      color: "green",
+      text: "Trống",
+    },
+    ACTIVE: {
+      color: "blue",
+      text: "Đang sử dụng",
+    },
+    CLEANING: {
+      color: "red",
+      text: "Bảo trì",
+    },
+  };
   const openAddModal = () => {
     setEditingItem(null);
     form.resetFields();
@@ -58,7 +74,9 @@ export default function CoopsTab() {
         console.log(res.data);
         // 3. Update state
         setData((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, ...res.data } : item))
+          prev.map((item) =>
+            item.id === id ? { ...item, ...res.data } : item,
+          ),
         );
 
         message.success("Cập nhật chuồng trại thành công");
@@ -86,7 +104,8 @@ export default function CoopsTab() {
         message.warning("Vui lòng nhập đầy đủ thông tin");
       } else {
         message.error(
-          error?.response?.data?.message || "Đã có lỗi xảy ra, vui lòng thử lại"
+          error?.response?.data?.message ||
+            "Đã có lỗi xảy ra, vui lòng thử lại",
         );
       }
     }
@@ -99,9 +118,21 @@ export default function CoopsTab() {
       message.success("Xóa chuồng trại thành công");
     } catch (e) {
       message.error(
-        `Thất bại vui lòng thử lại : ${e?.response?.data?.message}`
+        `Thất bại vui lòng thử lại : ${e?.response?.data?.message}`,
       );
     }
+  };
+  const handleViewDetail = (record) => {
+    console.log("Đang xem chuồng:", record.name);
+
+    // 1. Lưu ID chuồng vào state -> Modal con sẽ dựa vào ID này để gọi API
+    setSelectedCoopId(record.id);
+
+    // 2. Lưu tên chuồng để hiển thị lên tiêu đề Modal cho đẹp
+    setSelectedCoopName(record.name);
+
+    // 3. Mở Modal lên
+    setDetailOpen(true);
   };
   const columns = [
     {
@@ -124,7 +155,9 @@ export default function CoopsTab() {
       dataIndex: "status",
       key: "status",
       render: (status) => (
-        <Tag color={status === "EMPTY" ? "green" : "red"}>{status}</Tag>
+        <Tag color={textColorOfStatus[status].color}>
+          {textColorOfStatus[status].text}
+        </Tag>
       ),
     },
     {
@@ -132,6 +165,13 @@ export default function CoopsTab() {
       key: "action",
       render: (_, record) => (
         <Space>
+          <Button
+            type="link"
+           
+            onClick={() => handleViewDetail(record)}
+          >
+            Xem
+          </Button>
           <Button type="link" onClick={() => openEditModal(record)}>
             Sửa
           </Button>
@@ -152,7 +192,7 @@ export default function CoopsTab() {
       ),
     },
   ];
-  console.log(data)
+  console.log(data);
   useEffect(() => {
     const fetchApiCoop = async () => {
       const res = await coopApi.list();
@@ -209,6 +249,12 @@ export default function CoopsTab() {
           </Form.Item>
         </Form>
       </Modal>
+      <FlockDetailModal
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        coopName={selectedCoopName}
+        coopId={selectedCoopId}
+      />
     </Card>
   );
 }

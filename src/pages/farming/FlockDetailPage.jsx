@@ -365,21 +365,7 @@ const FlockDetailPage = () => {
                 />
               )
             },
-            {
-              key: 'info',
-              label: (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <InfoCircleOutlined />
-                  Thông tin
-                </span>
-              ),
-              children: (
-                <InfoTab
-                  flock={flock}
-                  dailyLogs={dailyLogs}
-                />
-              )
-            }
+            
           ]}
         />
       </Card>

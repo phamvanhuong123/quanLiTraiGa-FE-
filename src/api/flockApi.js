@@ -3,7 +3,7 @@ import axiosClient from "./axiosClient";
 const flockApi = {
   // Lấy danh sách đàn
   getFlocks: () => axiosClient.get("/flocks"),
-
+  getFlocksByCoop : (coopId) => axiosClient.get(`/flocks/coops/${coopId}`),
   // Lấy chi tiết đàn
   getById: (id) => axiosClient.get(`/flocks/${id}`),
 

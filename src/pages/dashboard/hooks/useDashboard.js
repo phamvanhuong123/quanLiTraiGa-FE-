@@ -120,12 +120,12 @@ const useDashboard = () => {
     const labels = ['1/2024', '2/2024', '3/2024', '4/2024', '5/2024', '6/2024'];
     setCashFlow({
       labels,
-      income: [2000000, 3000000, 1000000, 5000000, 8000000, 12000000],
-      expense: [1500000, 2200000, 1500000, 3300000, 4400000, 5700000]
+      income: [],
+      expense: []
     });
     setExpenseBreakdown({
-      labels: ['Mua cám', 'Tiền điện', 'Thuốc'],
-      data: [4500000, 1200000, 800000]
+      labels: [],
+      data: []
     });
   };
 

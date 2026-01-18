@@ -28,7 +28,7 @@ import DashboardCharts from './components/DashboardCharts';
 import ActionLists from './components/ActionLists';
 // Hooks và utils
 import useDashboard from './hooks/useDashboard';
-import { formatCurrency, formatDate } from './utils/dashboardUtils';
+import { formatCurrency } from './utils/dashboardUtils';
 
 const DashboardPage = () => {
   const {
@@ -120,7 +120,7 @@ const DashboardPage = () => {
       </Container>
     );
   }
-
+  console.log(cashFlow)
   return (
     <Container maxWidth="xl" sx={{ mt: 3, mb: 4 }}>
       {/* Header */}
