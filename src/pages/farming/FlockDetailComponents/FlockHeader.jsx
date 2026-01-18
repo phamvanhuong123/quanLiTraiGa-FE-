@@ -5,7 +5,6 @@ import {
     CalendarOutlined,
     TeamOutlined,
     TagOutlined,
-    UserOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { statusColors, statusLabels } from '../constants/mockData';
@@ -38,13 +37,13 @@ const FlockHeader = ({ flock, loading = false }) => {
     const targetWeight = flock?.breed?.targetWeight || 'N/A';
     const importDate = flock?.importDate;
     const age = flock?.age || 0;
-    const supplierName = flock?.supplier?.name || 'Chưa xác định';
+    const supplierName = flock?.supplierName || 'Chưa xác định';
     const currentQuantity = flock?.currentQuantity || 0;
     const initialQuantity = flock?.initialQuantity || 0;
     const survivalRate = initialQuantity > 0
         ? Math.round((currentQuantity / initialQuantity) * 100)
         : 0;
-
+    console.log(flock)
     return (
         <Card style={{ marginBottom: 16 }}>
             <Row gutter={[16, 16]}>

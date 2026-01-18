@@ -247,21 +247,21 @@ const FlockDetailPage = () => {
           <Space>
             {flock.status !== 'CLOSED' && flock.status !== 'SOLD' && flock.status !== 'Đã bán' && (
               <>
-                <Button
+                {/* <Button
                   type="dashed"
                   icon={<CalendarOutlined />}
                   onClick={() => setShowCreateScheduleModal(true)}
                   disabled={flock.status === 'SOLD' || flock.status === 'CLOSED'}
                 >
                   Tạo lịch trình
-                </Button>
-                <Button
+                </Button> */}
+                {/* <Button
                   type="primary"
                   onClick={() => setShowDailyLogModal(true)}
                   disabled={flock.status === 'SOLD' || flock.status === 'CLOSED'}
                 >
                   Ghi nhật ký hôm nay
-                </Button>
+                </Button> */}
                 <Button
                   type="primary"
                   danger
