@@ -130,7 +130,7 @@ export default function InventoryPage() {
       message.success("Xoá thành công")
     }
     catch(e){
-      message.error(`Xoá thất bại : ${e}`)
+      message.error(`Xoá thất bại : ${e?.response?.data?.message}`)
     }
     
   };
